@@ -1,11 +1,11 @@
 """
 ЧЕЛЕНДЖ A · опис інструмента = поведінка агента.
 
-    python -m practice.experiment_a --hunt            # шукати запит, що ламає наївний опис
-    python -m practice.experiment_a --rescore         # переоцінити збережені прогони, $0
-    python -m practice.experiment_a --query <ключ>    # обидва варіанти на цьому запиті
-    python -m practice.experiment_a --list            # перелік запитів-кандидатів
-    python -m practice.experiment_a                   # обидва варіанти на запиті за замовчуванням
+    python -m practice.challenges.a_experiment --hunt          # шукати запит, що ламає наївний опис
+    python -m practice.challenges.a_experiment --rescore       # переоцінити збережені прогони, $0
+    python -m practice.challenges.a_experiment --query <ключ>  # обидва варіанти на цьому запиті
+    python -m practice.challenges.a_experiment --list          # перелік запитів-кандидатів
+    python -m practice.challenges.a_experiment                 # обидва варіанти на запиті за замовчуванням
 
 Що перевіряємо. Реалізації інструментів, імена, параметри, системний промпт і запит
 однакові в обох прогонах. Відрізняється РІВНО текст описів у схемі — той, що читає
@@ -33,11 +33,12 @@ import os
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-import core.agent as agent                                 # noqa: E402
-from practice import backend as practice_backend           # noqa: E402
-from practice import budget, checks, run as prun           # noqa: E402
+import core.agent as agent                                      # noqa: E402
+from practice.base import run as prun                           # noqa: E402
+from practice.common import backend as practice_backend         # noqa: E402
+from practice.common import budget, checks                      # noqa: E402
 
 DEFAULT_EXPERIMENT_BUDGET_USD = 0.30
 
@@ -286,7 +287,7 @@ def hunt(limit: float) -> int:
     print("-" * 70)
     if found:
         print(f"  Ламають наївний опис: {', '.join(found)}")
-        print(f"  Далі: python -m practice.experiment_a --query {found[0]}")
+        print(f"  Далі: python -m practice.challenges.a_experiment --query {found[0]}")
     else:
         print("  Жоден кандидат не зламав наївний опис.")
         print("  Це результат, а не невдача: у цьому дизайні контракт несуть ІМЕНА")
@@ -341,7 +342,7 @@ def rescore() -> int:
     print("-" * 70)
     if broken:
         print(f"  Справжні дефекти: {', '.join(broken)}")
-        print(f"  Далі: python -m practice.experiment_a --query {broken[0]}")
+        print(f"  Далі: python -m practice.challenges.a_experiment --query {broken[0]}")
     else:
         print("  Справжніх дефектів немає.")
     return 0

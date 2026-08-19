@@ -2,18 +2,18 @@
 ОСНОВА · точка входу практики (щасливий прогін і зламані сценарії).
 Запускати з теки module1/:
 
-    python -m practice.run                 # щасливий ланцюжок
-    python -m practice.run direct          # клієнт сам знає трек-номер
-    python -m practice.run range           # телефон + період дат
-    python -m practice.run tool_error      # збій інструмента
-    python -m practice.run hostile         # клієнт підкидає суму
-    python -m practice.run unknown         # телефону немає в базі
+    python -m practice.base.run             # щасливий ланцюжок
+    python -m practice.base.run direct      # клієнт сам знає трек-номер
+    python -m practice.base.run range       # телефон + період дат
+    python -m practice.base.run tool_error  # збій інструмента
+    python -m practice.base.run hostile     # клієнт підкидає суму
+    python -m practice.base.run unknown     # телефону немає в базі
 
 Зламані сценарії, що керуються оточенням (той самий щасливий запит):
 
-    ANTHROPIC_API_KEY=sk-ant-invalid python -m practice.run     # api_error
-    MAX_TURNS=1 python -m practice.run                          # turns_exhausted
-    PRACTICE_BUDGET_USD=0.0001 python -m practice.run           # бюджет вичерпано
+    ANTHROPIC_API_KEY=sk-ant-invalid python -m practice.base.run  # api_error
+    MAX_TURNS=1 python -m practice.base.run                       # turns_exhausted
+    PRACTICE_BUDGET_USD=0.0001 python -m practice.base.run        # бюджет вичерпано
 
 Що тут відбувається по кроках:
   1. Перевірка, що модель є в таблиці цін (інакше бюджет рахував би нуль).
@@ -22,6 +22,12 @@
   3. Перевірка бюджету ДО першого звернення до моделі.
   4. Виклик спільного `run_agent` з власним списком схем.
   5. Детерміновані перевірки результату: доказ ланцюжка і суми без підтвердження.
+
+Цей файл — не лише точка входу основи, і про це варто знати, перш ніж тут щось
+міняти. Усі челенджі імпортують звідси спільну оснастку: register_tools(),
+enrich(), report(), save_result(), PRACTICE_PROMPT і словник QUERIES. Тому
+правка тутешньої функції відгукнеться і в челенджах A, B та D — саме через це
+основа лежить окремою текою base/, а не всередині common/.
 """
 
 import json
@@ -29,19 +35,19 @@ import os
 import pathlib
 import sys
 
-# Дозволяє і `python -m practice.run` (штатно), і `python practice/run.py`.
+# Дозволяє і `python -m practice.base.run` (штатно), і `python practice/base/run.py`.
 # Без цього другий варіант не побачив би config/core/domain: sys.path[0] вказував би
 # на practice/, а не на module1/. Відома пастка цього репозиторію.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from config import MAX_TURNS, MODEL, OUT_DIR              # noqa: E402
-from core import escalation                               # noqa: E402
-from core.agent import run_agent                          # noqa: E402
-import core.agent as agent                                # noqa: E402
-from domain import backend as course_backend              # noqa: E402
-from practice import backend as practice_backend          # noqa: E402
-from practice import budget, checks                       # noqa: E402
-from core import cost                                     # noqa: E402
+from config import MAX_TURNS, MODEL, OUT_DIR                    # noqa: E402
+from core import escalation                                     # noqa: E402
+from core.agent import run_agent                                # noqa: E402
+from core import cost                                           # noqa: E402
+import core.agent as agent                                      # noqa: E402
+from domain import backend as course_backend                    # noqa: E402
+from practice.common import backend as practice_backend         # noqa: E402
+from practice.common import budget, checks                      # noqa: E402
 
 RESULTS = OUT_DIR / "practice_results.json"
 

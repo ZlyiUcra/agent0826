@@ -3,7 +3,7 @@
 
 Запуск з теки module1/:
 
-    python -m unittest practice.test_practice -v
+    python -m unittest practice.challenges.c_tests -v
 
 Ключове про мок: підміняється `core.agent._call`, тобто рівень «один виклик до API».
 Наслідок, який треба знати: `_track` живе ВСЕРЕДИНІ `_call`, тож під моком лічильник
@@ -30,19 +30,19 @@ import sys           # noqa: E402
 import unittest      # noqa: E402
 from unittest import mock   # noqa: E402
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from anthropic.types import Message              # noqa: E402
-import core.agent as agent                       # noqa: E402
-from domain import backend as course_backend     # noqa: E402
-from practice import backend as pbackend         # noqa: E402
-from practice import budget, checks              # noqa: E402
-from practice import run as prun                 # noqa: E402
-from practice import demo as pdemo               # noqa: E402
-from practice import experiment_a as pexp        # noqa: E402
-from practice import redteam as prt              # noqa: E402
-from practice import actions as pactions         # noqa: E402
-from practice import action as paction           # noqa: E402
+from anthropic.types import Message                             # noqa: E402
+import core.agent as agent                                      # noqa: E402
+from domain import backend as course_backend                    # noqa: E402
+from practice.base import run as prun                           # noqa: E402
+from practice.base import demo as pdemo                         # noqa: E402
+from practice.challenges import a_experiment as pexp            # noqa: E402
+from practice.challenges import b_redteam as prt                # noqa: E402
+from practice.challenges import d_tools as pactions             # noqa: E402
+from practice.challenges import d_run as paction                # noqa: E402
+from practice.common import backend as pbackend                 # noqa: E402
+from practice.common import budget, checks                      # noqa: E402
 
 
 def _msg(blocks, stop_reason, in_tok=100, out_tok=20):

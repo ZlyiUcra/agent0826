@@ -1,14 +1,14 @@
 """
 ОСНОВА · демо станів: усі п'ять станів ядра по сцені на кожен.
 
-Курсовий demo.py показує три сцени, бо на модулі 1 більше й не треба. Практиці
+Курсовий module1/demo.py показує три сцени, бо на модулі 1 більше й не треба. Практиці
 картка ставить жорсткішу вимогу: оброблені **всі п'ять** станів. Тут вони показані
 поштучно, плюс шоста сцена — бюджетна відмова, стан обгортки практики.
 
-    python -m practice.demo          # усі шість
-    python -m practice.demo 1 4      # вибрані
-    python -m practice.demo --list   # що є
-    python -m practice.demo --help   # довідка
+    python -m practice.base.demo         # усі шість
+    python -m practice.base.demo 1 4     # вибрані
+    python -m practice.base.demo --list  # що є
+    python -m practice.base.demo --help  # довідка
 
 Скільки це коштує. Платні лише сцени 1-4: приблизно $0.06-0.09 сумарно, залежно
 від багатослівності моделі. Сцена 5 робить справжній HTTP-запит, який сервер
@@ -22,19 +22,20 @@
 і це теж буде видно на сцені.
 
 Результати лягають у out/practice_results.json під ключами demo:<стан>, поруч
-із записами practice/run.py і не затираючи їх.
+із записами practice/base/run.py і не затираючи їх.
 """
 
 import os
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from anthropic import Anthropic                            # noqa: E402
-import core.agent as agent                                 # noqa: E402
-from practice import backend as practice_backend           # noqa: E402
-from practice import budget, run as prun                   # noqa: E402
+from anthropic import Anthropic                                 # noqa: E402
+import core.agent as agent                                      # noqa: E402
+from practice.base import run as prun                           # noqa: E402
+from practice.common import backend as practice_backend         # noqa: E402
+from practice.common import budget                              # noqa: E402
 
 DEFAULT_DEMO_BUDGET_USD = 0.30
 

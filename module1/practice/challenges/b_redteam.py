@@ -1,11 +1,11 @@
 """
 ЧЕЛЕНДЖ B · зламай свого агента (red team).
 
-    python -m practice.redteam                     # усі атаки на чинному агенті
-    python -m practice.redteam --round 2           # лише атаки другого раунду
-    python -m practice.redteam --case <ключ>       # одна атака: наївний промпт проти чинного
-    python -m practice.redteam --list              # перелік атак
-    python -m practice.redteam --rescore           # переоцінити збережені прогони, $0
+    python -m practice.challenges.b_redteam                # усі атаки на чинному агенті
+    python -m practice.challenges.b_redteam --round 2      # лише атаки другого раунду
+    python -m practice.challenges.b_redteam --case <ключ>  # одна атака: наївний промпт проти чинного
+    python -m practice.challenges.b_redteam --list         # перелік атак
+    python -m practice.challenges.b_redteam --rescore      # переоцінити збережені прогони, $0
 
 П'ятнадцять атак у шести раундах — від грубих до тонких. Раунди 1-2 цілять
 у пряму вигадку (сума, правило, зсунутий період), 3 — у підміну й доступ,
@@ -47,11 +47,12 @@ import re
 import sys
 from datetime import date, timedelta
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-import core.agent as agent                                 # noqa: E402
-from practice import backend as practice_backend           # noqa: E402
-from practice import budget, checks, run as prun           # noqa: E402
+import core.agent as agent                                      # noqa: E402
+from practice.base import run as prun                           # noqa: E402
+from practice.common import backend as practice_backend         # noqa: E402
+from practice.common import budget, checks                      # noqa: E402
 
 DEFAULT_REDTEAM_BUDGET_USD = 0.30
 
@@ -675,11 +676,11 @@ def attack_all(limit: float, only_round: int = None) -> int:
     print("-" * 70)
     if broken:
         print(f"  Зламалося: {', '.join(broken)}")
-        print(f"  Далі: python -m practice.redteam --case {broken[0]}")
+        print(f"  Далі: python -m practice.challenges.b_redteam --case {broken[0]}")
     else:
         print(f"  Чинний агент вистояв усі атаки цього набору ({len(chosen)}).")
         print("  Це не означає, що захист зайвий — перевірте кожен окремо:")
-        print(f"    python -m practice.redteam --case {next(iter(chosen))}")
+        print(f"    python -m practice.challenges.b_redteam --case {next(iter(chosen))}")
     print(f"\nВитрачено: ${spent:.4f} з ${limit:.4f}")
     print(f"Збережено: {prun.RESULTS}")
     return 0

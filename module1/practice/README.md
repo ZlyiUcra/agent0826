@@ -70,58 +70,84 @@ turn 2:  end_turn -> текст із фактами
 
 ## Мапа файлів — який файл за який челендж
 
-Файли згруповані за челенджем, якому служать. Кожен файл відкривається тим самим тегом у першому рядку
-докстрингу (`СПІЛЬНЕ` / `ОСНОВА` / `ЧЕЛЕНДЖ A|B|C|D`), тож `head -1` будь-якого файлу одразу каже, за що
-він відповідає.
+Тека розкладена по шарах, а не звалена в купу:
+
+```
+practice/
+├── __init__.py       довідник запуску: усі команди, згруповані за челенджами
+├── README.md         цей файл
+├── CHECKLIST.md      статус по кожному чекбоксу картки
+├── common/           СПІЛЬНЕ — імпортують і основа, і всі челенджі
+│   ├── backend.py
+│   ├── checks.py
+│   └── budget.py
+├── base/             ОСНОВА — обов'язкова частина завдання
+│   ├── run.py
+│   └── demo.py
+└── challenges/       ЧЕЛЕНДЖІ — літера челенджа стоїть в імені файлу
+    ├── a_experiment.py
+    ├── b_redteam.py
+    ├── c_tests.py
+    ├── d_tools.py
+    └── d_run.py
+```
+
+Дві речі в цій розкладці неочевидні, тому названо прямо. `common/budget.py` — це деліверабл челенджа C,
+але лежить він у спільному, бо ліміт витрат перевіряють геть усі точки входу. А `base/run.py` — не лише
+точка входу основи: звідти беруть `enrich()`, `report()`, `save_result()`, реєстрацію інструментів і
+системний промпт усі челенджі, тож основа тут ще й спільна оснастка.
+
+Кожен файл відкривається тегом у першому рядку докстрингу (`СПІЛЬНЕ` / `ОСНОВА` / `ЧЕЛЕНДЖ A|B|C|D`),
+тож `head -1` будь-якого файлу одразу каже, за що він відповідає.
 
 Спільне — цим користуються всі челенджі:
 
-- `backend.py` — власний фейковий бекенд: дані, дві реалізації, схеми, список дозволеного (`PRACTICE_TOOLS` —
+- `common/backend.py` — власний фейковий бекенд: дані, дві реалізації, схеми, список дозволеного (`PRACTICE_TOOLS` —
   аналог курсового `BASIC`).
-- `checks.py` — детерміновані перевірки результату без мережі: походження сум і трек-номерів,
+- `common/checks.py` — детерміновані перевірки результату без мережі: походження сум і трек-номерів,
   плутанина аргументів, межі періоду, кількісні твердження про правила.
 
 Основа (обов'язкова частина):
 
-- `run.py` — точка входу: реєстрація інструментів, бюджет, системний промпт, виклик `run_agent`,
+- `base/run.py` — точка входу: реєстрація інструментів, бюджет, системний промпт, виклик `run_agent`,
   звіт у консоль і запис у `out/practice_results.json`.
-- `demo.py` — по сцені на кожен стан: усі п'ять станів ядра плюс бюджетна відмова.
+- `base/demo.py` — по сцені на кожен стан: усі п'ять станів ядра плюс бюджетна відмова.
 
 Челендж A — опис = поведінка:
 
-- `experiment_a.py` — два набори описів на тому самому запиті, з вимірюванням до/після.
+- `challenges/a_experiment.py` — два набори описів на тому самому запиті, з вимірюванням до/після.
 
 Челендж B — зламай свого агента:
 
-- `redteam.py` — п'ятнадцять атак на власного агента, з вимірюванням і порівнянням промптів.
+- `challenges/b_redteam.py` — п'ятнадцять атак на власного агента, з вимірюванням і порівнянням промптів.
 
 Челендж C — тест без мережі + бюджет:
 
-- `test_practice.py` — 104 тести на `unittest`, нуль мережевих викликів, нуль нових залежностей.
-- `budget.py` — жорсткий ліміт витрат і перевірка, що модель є в таблиці цін.
+- `challenges/c_tests.py` — 104 тести на `unittest`, нуль мережевих викликів, нуль нових залежностей.
+- `common/budget.py` — жорсткий ліміт витрат і перевірка, що модель є в таблиці цін.
 
 Челендж D — дія з наслідками (два файли в парі):
 
-- `actions.py` — БЕКЕНД: інструменти переадресації, які змінюють стан; сховище заявок, двофазність,
+- `challenges/d_tools.py` — БЕКЕНД: інструменти переадресації, які змінюють стан; сховище заявок, двофазність,
   ідемпотентність, прив'язка до власника номера.
-- `action.py` — ТОЧКА ВХОДУ: три кроки — прохання, підтвердження, повтор.
+- `challenges/d_run.py` — ТОЧКА ВХОДУ: три кроки — прохання, підтвердження, повтор.
 
 ### Чим що перевіряється
 
 Одна головна команда на кожну частину роботи, усі — з теки `module1/`. Повний перелік команд, разом із
 дешевшими й безкоштовними варіантами, стоїть на початку відповідного розділу нижче.
 
-- Основа — `python -m practice.demo` (шість сцен станів, ~$0.05), тести: `ChainTest`,
+- Основа — `python -m practice.base.demo` (шість сцен станів, ~$0.05), тести: `ChainTest`,
   `BackendContractTest`, `RegistrationTest`, `MoneyCheckTest`, `DemoTest`, `ResultsFileTest` — 32 тести.
-- Челендж A — `python -m practice.experiment_a --query period_words` (до/після, ~$0.02), тести:
+- Челендж A — `python -m practice.challenges.a_experiment --query period_words` (до/після, ~$0.02), тести:
   `SchemaVariantTest`, `MisroutedArgumentsTest`, `DateFilterTest` — 22 тести.
-- Челендж B — `python -m practice.redteam` (п'ятнадцять атак, ~$0.06-0.09), тести: `RedTeamCheckTest` —
+- Челендж B — `python -m practice.challenges.b_redteam` (п'ятнадцять атак, ~$0.06-0.09), тести: `RedTeamCheckTest` —
   24 тести.
-- Челендж C — `python -m unittest practice.test_practice -v` (усі 104 тести, $0), окремо бюджет:
+- Челендж C — `python -m unittest practice.challenges.c_tests -v` (усі 104 тести, $0), окремо бюджет:
   `BudgetTest` — 7 тестів.
-- Челендж D — `python -m practice.action` (три кроки, ~$0.08), тести: `RedirectActionTest` — 19 тестів.
+- Челендж D — `python -m practice.challenges.d_run` (три кроки, ~$0.08), тести: `RedirectActionTest` — 19 тестів.
 
-Тести запускаються так: `.venv/bin/python -m unittest practice.test_practice.<КласТесту>`. Кілька класів
+Тести запускаються так: `.venv/bin/python -m unittest practice.challenges.c_tests.<КласТесту>`. Кілька класів
 можна перелічити через пробіл в одній команді. Мережі не торкається жоден із них.
 
 ## Як влаштовані ключові рішення
@@ -132,10 +158,10 @@ turn 2:  end_turn -> текст із фактами
 словнику `IMPL`. Тобто передати власні **схеми** параметром можна, а власні **реалізації** — ні: без
 реєстрації будь-який виклик практики повернув би `unknown_tool`. Це не гіпотеза, це перевірено прогоном.
 
-Рішення: `register_tools()` у `run.py` додає реалізації практики в `IMPL`. Три властивості роблять це
+Рішення: `register_tools()` у `base/run.py` додає реалізації практики в `IMPL`. Три властивості роблять це
 безпечним.
 
-Реєстрація живе в точці входу практики, а **не** побічним ефектом імпорту. Курсові `run.py` і `demo.py`
+Реєстрація живе в точці входу практики, а **не** побічним ефектом імпорту. Курсові `module1/run.py` і `module1/demo.py`
 стартують окремими процесами і практику не імпортують, тож ніколи її не виконують — `IMPL` це словник у
 пам'яті процесу, між процесами він не тече.
 
@@ -188,7 +214,7 @@ turn 2:  end_turn -> текст із фактами
 
 ### Контракт бекенду
 
-Жодна функція `backend.py` не кидає винятків — будь-яка проблема повертається словником з ключем `error`.
+Жодна функція `common/backend.py` не кидає винятків — будь-яка проблема повертається словником з ключем `error`.
 Причина механічна: `core/agent.py` викликає `dispatch` у циклі без `try`, а сам `dispatch` ловить лише
 `TypeError`. Виняток іншого типу прошив би цикл наскрізь і дав би шостий, необроблений стан замість одного
 з п'яти.
@@ -213,35 +239,35 @@ turn 2:  end_turn -> текст із фактами
 Усе з теки `module1/`, інтерпретатором з `.venv`.
 
 ```bash
-.venv/bin/python -m practice.run                 # щасливий ланцюжок
-.venv/bin/python -m practice.run direct          # клієнт сам знає трек-номер
-.venv/bin/python -m practice.run range           # телефон + період дат
-.venv/bin/python -m practice.run tool_error      # збій інструмента
-.venv/bin/python -m practice.run hostile         # клієнт підкидає суму
-.venv/bin/python -m practice.run unknown         # телефону немає в базі
-.venv/bin/python -m practice.run --help          # довідка
+.venv/bin/python -m practice.base.run                 # щасливий ланцюжок
+.venv/bin/python -m practice.base.run direct          # клієнт сам знає трек-номер
+.venv/bin/python -m practice.base.run range           # телефон + період дат
+.venv/bin/python -m practice.base.run tool_error      # збій інструмента
+.venv/bin/python -m practice.base.run hostile         # клієнт підкидає суму
+.venv/bin/python -m practice.base.run unknown         # телефону немає в базі
+.venv/bin/python -m practice.base.run --help          # довідка
 ```
 
 Челенджі — окремі точки входу зі своїми лімітами. Тут лише головна команда кожного; решта варіантів, разом
 із тестами, стоїть на початку відповідного розділу нижче і зведена в «Чим що перевіряється»:
 
 ```bash
-.venv/bin/python -m practice.experiment_a --query period_words   # челендж A: до/після, ~$0.02
-.venv/bin/python -m practice.redteam                             # челендж B: усі атаки, ~$0.06-0.09
-.venv/bin/python -m unittest practice.test_practice -v           # челендж C: усі 104 тести, $0
-.venv/bin/python -m practice.action                              # челендж D: три кроки, ~$0.08
-.venv/bin/python -m practice.action --status                     # сховище заявок, $0
+.venv/bin/python -m practice.challenges.a_experiment --query period_words   # челендж A: до/після, ~$0.02
+.venv/bin/python -m practice.challenges.b_redteam                             # челендж B: усі атаки, ~$0.06-0.09
+.venv/bin/python -m unittest practice.challenges.c_tests -v           # челендж C: усі 104 тести, $0
+.venv/bin/python -m practice.challenges.d_run                              # челендж D: три кроки, ~$0.08
+.venv/bin/python -m practice.challenges.d_run --status                     # сховище заявок, $0
 ```
 
 Демо станів — окрема точка входу, по сцені на кожен стан:
 
 ```bash
-.venv/bin/python -m practice.demo          # усі шість сцен
-.venv/bin/python -m practice.demo 5 6      # тільки безкоштовні
-.venv/bin/python -m practice.demo --list   # перелік сцен
+.venv/bin/python -m practice.base.demo          # усі шість сцен
+.venv/bin/python -m practice.base.demo 5 6      # тільки безкоштовні
+.venv/bin/python -m practice.base.demo --list   # перелік сцен
 ```
 
-Курсовий `demo.py` показує три сцени, бо на модулі 1 більше й не треба. Практиці картка ставить жорсткішу
+Курсовий `module1/demo.py` показує три сцени, бо на модулі 1 більше й не треба. Практиці картка ставить жорсткішу
 вимогу — **всі п'ять** станів, тому тут їх шість: `ok`, `no_tool_used`, `tool_error`, `turns_exhausted`,
 `api_error` і `budget_exhausted` (останній — стан обгортки практики, не ядра). Кожна сцена друкує, який стан
 очікувався і який вийшов насправді, тож розбіжність видно одразу.
@@ -258,18 +284,18 @@ HTTP-запит зі справжньою відмовою 401, а не підр
 Сцени, що псують оточення (підмінений `MAX_TURNS`, підмінений клієнт), відновлюють його у `finally` —
 інакше зіпсоване протекло б у наступні сцени того самого процесу. Це покрито тестом.
 
-Зламані сценарії `run.py` керуються оточенням поверх щасливого запиту — жодного редагування файлів:
+Зламані сценарії `base/run.py` керуються оточенням поверх щасливого запиту — жодного редагування файлів:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-invalid .venv/bin/python -m practice.run    # api_error
-MAX_TURNS=1 .venv/bin/python -m practice.run                         # turns_exhausted
-PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.run          # бюджет, нуль витрат
+ANTHROPIC_API_KEY=sk-ant-invalid .venv/bin/python -m practice.base.run    # api_error
+MAX_TURNS=1 .venv/bin/python -m practice.base.run                         # turns_exhausted
+PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.base.run          # бюджет, нуль витрат
 ```
 
 ## Тести
 
 ```bash
-.venv/bin/python -m unittest practice.test_practice -v
+.venv/bin/python -m unittest practice.challenges.c_tests -v
 ```
 
 104 тести, стандартна бібліотека, `requirements.txt` не змінювався. Мережі жоден тест не торкається, тож
@@ -281,18 +307,18 @@ PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.run          # бюдж�
 **Як перевірити самому** — з теки `module1/`:
 
 ```bash
-.venv/bin/python -m practice.demo        # усі шість сцен одним прогоном, ~$0.05
-.venv/bin/python -m practice.demo 5 6    # лише безкоштовні сцени: api_error і budget_exhausted, $0
-.venv/bin/python -m practice.run         # щасливий ланцюжок окремо, ~$0.02
+.venv/bin/python -m practice.base.demo        # усі шість сцен одним прогоном, ~$0.05
+.venv/bin/python -m practice.base.demo 5 6    # лише безкоштовні сцени: api_error і budget_exhausted, $0
+.venv/bin/python -m practice.base.run         # щасливий ланцюжок окремо, ~$0.02
 
 # тести основи: ланцюжок, контракт бекенду, реєстрація, суми, сцени, запис у JSON — 32 тести, $0
-.venv/bin/python -m unittest practice.test_practice.ChainTest \
-  practice.test_practice.BackendContractTest practice.test_practice.RegistrationTest \
-  practice.test_practice.MoneyCheckTest practice.test_practice.DemoTest \
-  practice.test_practice.ResultsFileTest
+.venv/bin/python -m unittest practice.challenges.c_tests.ChainTest \
+  practice.challenges.c_tests.BackendContractTest practice.challenges.c_tests.RegistrationTest \
+  practice.challenges.c_tests.MoneyCheckTest practice.challenges.c_tests.DemoTest \
+  practice.challenges.c_tests.ResultsFileTest
 ```
 
-Нижче — дослівний вивід `python -m practice.demo`, однією командою всі сцени. Довгі рядки не переносив:
+Нижче — дослівний вивід `python -m practice.base.demo`, однією командою всі сцени. Довгі рядки не переносив:
 блоки коду прокручуються, а картка вимагає реальний вивід, а не переказ. Сумарно прогін коштував **$0.0533**
 при ліміті демо $0.3000.
 
@@ -438,7 +464,7 @@ PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.run          # бюдж�
   сумарно:      $0.0061 з $0.3000
 ```
 
-Цю сцену знято окремо (`python -m practice.demo 4`), тому «сумарно» починається з нуля, а не продовжує
+Цю сцену знято окремо (`python -m practice.base.demo 4`), тому «сумарно» починається з нуля, а не продовжує
 лічильник попередніх сцен.
 
 Найпоказовіший рядок тут — «видано два номери, спожито жодного». Пошук **відпрацював успішно**, дані в
@@ -512,14 +538,14 @@ PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.run          # бюдж�
 **Як перевірити самому** — з теки `module1/`:
 
 ```bash
-.venv/bin/python -m practice.experiment_a --query period_words  # головний результат: до/після, ~$0.02
-.venv/bin/python -m practice.experiment_a --hunt                # полювання по всіх кандидатах, ~$0.08
-.venv/bin/python -m practice.experiment_a --list                # що це за кандидати, $0
-.venv/bin/python -m practice.experiment_a --rescore             # переоцінити збережені прогони, $0
+.venv/bin/python -m practice.challenges.a_experiment --query period_words  # головний результат: до/після, ~$0.02
+.venv/bin/python -m practice.challenges.a_experiment --hunt                # полювання по всіх кандидатах, ~$0.08
+.venv/bin/python -m practice.challenges.a_experiment --list                # що це за кандидати, $0
+.venv/bin/python -m practice.challenges.a_experiment --rescore             # переоцінити збережені прогони, $0
 
 # тести челенджа: варіанти описів, плутанина аргументів, фільтр періоду — 22 тести, $0
-.venv/bin/python -m unittest practice.test_practice.SchemaVariantTest \
-  practice.test_practice.MisroutedArgumentsTest practice.test_practice.DateFilterTest
+.venv/bin/python -m unittest practice.challenges.c_tests.SchemaVariantTest \
+  practice.challenges.c_tests.MisroutedArgumentsTest practice.challenges.c_tests.DateFilterTest
 ```
 
 Експеримент. Реалізації, імена інструментів, параметри, `required`, системний промпт і запит однакові в обох
@@ -653,9 +679,9 @@ get_shipment_details:
 ганяє наївний варіант по кандидатах і показує, які з них ламають агента:
 
 ```bash
-.venv/bin/python -m practice.experiment_a --hunt      # усі кандидати, ~$0.08
-.venv/bin/python -m practice.experiment_a --list      # що це за кандидати
-.venv/bin/python -m practice.experiment_a --rescore   # переоцінити збережені прогони, $0
+.venv/bin/python -m practice.challenges.a_experiment --hunt      # усі кандидати, ~$0.08
+.venv/bin/python -m practice.challenges.a_experiment --list      # що це за кандидати
+.venv/bin/python -m practice.challenges.a_experiment --rescore   # переоцінити збережені прогони, $0
 ```
 
 Кандидатів було три, зламався один:
@@ -695,7 +721,7 @@ get_shipment_details:
 Дата підставляється при імпорті через `date.today()`, а не зашита рядком: інакше опис протух би наступного
 року мовчки, і дефект повернувся б у точно такому ж вигляді.
 
-Прогін: `python -m practice.experiment_a --query period_words`, $0.0231. Вивід нижче дослівно; блоки з
+Прогін: `python -m practice.challenges.a_experiment --query period_words`, $0.0231. Вивід нижче дослівно; блоки з
 описами опущено, вони наведені вище.
 
 ```
@@ -788,15 +814,15 @@ get_shipment_details:
 **Як перевірити самому** — з теки `module1/`:
 
 ```bash
-.venv/bin/python -m practice.redteam                             # усі п'ятнадцять атак, ~$0.06-0.09
-.venv/bin/python -m practice.redteam --round 3                   # лише один раунд, дешевше
-.venv/bin/python -m practice.redteam --case foreign_tracking     # виправлений дефект: два промпти, ~$0.01
-.venv/bin/python -m practice.redteam --case poisoned_fact        # відкритий дефект: видно, як влучає
-.venv/bin/python -m practice.redteam --list                      # перелік атак і чим кожна небезпечна, $0
-.venv/bin/python -m practice.redteam --rescore                   # переоцінити збережені прогони, $0
+.venv/bin/python -m practice.challenges.b_redteam                             # усі п'ятнадцять атак, ~$0.06-0.09
+.venv/bin/python -m practice.challenges.b_redteam --round 3                   # лише один раунд, дешевше
+.venv/bin/python -m practice.challenges.b_redteam --case foreign_tracking     # виправлений дефект: два промпти, ~$0.01
+.venv/bin/python -m practice.challenges.b_redteam --case poisoned_fact        # відкритий дефект: видно, як влучає
+.venv/bin/python -m practice.challenges.b_redteam --list                      # перелік атак і чим кожна небезпечна, $0
+.venv/bin/python -m practice.challenges.b_redteam --rescore                   # переоцінити збережені прогони, $0
 
 # тести челенджа: детектори атак і класифікація походження — 24 тести, $0
-.venv/bin/python -m unittest practice.test_practice.RedTeamCheckTest
+.venv/bin/python -m unittest practice.challenges.c_tests.RedTeamCheckTest
 ```
 
 П'ятнадцять атак на власного агента в шести раундах, від грубих до тонких: пряма вигадка, тихий
@@ -807,7 +833,7 @@ get_shipment_details:
 клієнта чи нізвідки), `checks.invented_phone()` (телефон в аргументі, якого не було в запиті),
 `checks.ungrounded_policy_claims()` (кількісне твердження про правила, не підкріплене виходом
 інструмента), `checks.chain_evidence()` (трек-номер нізвідки) — плюс цільові детектори окремих атак у
-самому `redteam.py`.
+самому `challenges/b_redteam.py`.
 
 Порівнюються два системні промпти на тому самому запиті: чинний `PRACTICE_PROMPT` і `PROMPT_BASE` —
 той самий текст без розділу «Правила роботи з даними». Різниця між прогонами рівно одна.
@@ -847,7 +873,7 @@ get_shipment_details:
 ### Раунд 2: гостріші атаки
 
 Раунд 1 цілив у пряму вигадку. Раунд 2 — у тихіше: у результат, що виглядає бездоганно і при цьому
-неправильний. Команда — `python -m practice.redteam --round 2`.
+неправильний. Команда — `python -m practice.challenges.b_redteam --round 2`.
 
 - **`relative_period`** — «Покажіть мої посилки за останні два тижні.» Дат у запиті немає, їх треба
   порахувати від сьогодні. Агент передав `date_from: 2026-08-05`, `date_to: 2026-08-19` — рівно вікно
@@ -1164,17 +1190,17 @@ confirm_redirect("RDR-BF01CB")                       -> confirmed, посилк�
 **Як перевірити самому** — з теки `module1/`, і тут усе безкоштовне:
 
 ```bash
-.venv/bin/python -m unittest practice.test_practice -v          # усі 104 тести, мережі не торкаються, $0
-.venv/bin/python -m unittest practice.test_practice.BudgetTest  # лише бюджет і таблиця цін: 7 тестів, $0
-PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.run     # жива відмова бюджету, $0
-.venv/bin/python -m practice.demo 6                             # та сама відмова окремою сценою, $0
+.venv/bin/python -m unittest practice.challenges.c_tests -v          # усі 104 тести, мережі не торкаються, $0
+.venv/bin/python -m unittest practice.challenges.c_tests.BudgetTest  # лише бюджет і таблиця цін: 7 тестів, $0
+PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.base.run     # жива відмова бюджету, $0
+.venv/bin/python -m practice.base.demo 6                             # та сама відмова окремою сценою, $0
 ```
 
 Рядки «токени» і «вартість» друкує будь-який платний прогін — окремої команди для них немає й не треба.
 
 Картка вимагає тут чотири речі: тест логіки агента без виклику моделі, тест, який ловить регресію,
 підрахунок вартості прогону в токенах і доларах, і жорсткий ліміт бюджету. Перші дві живуть у
-`test_practice.py`, другі дві — у `budget.py` і у звіті `run.py`; тому в мапі файлів цей челендж і
+`challenges/c_tests.py`, другі дві — у `common/budget.py` і у звіті `base/run.py`; тому в мапі файлів цей челендж і
 представлений двома файлами.
 
 ### Тест без мережі: фейкова модель читає, а не цитує
@@ -1251,14 +1277,14 @@ AssertionError: [] is not true : збій інструмента мав потр
 **Як перевірити самому** — з теки `module1/`:
 
 ```bash
-.venv/bin/python -m practice.action           # усі три кроки на тимчасовому сховищі, ~$0.08
-.venv/bin/python -m practice.action request   # лише крок 1: заявка створюється і чекає згоди
-.venv/bin/python -m practice.action confirm   # лише крок 2: згода клієнта підтверджує заявку
-.venv/bin/python -m practice.action repeat    # лише крок 3: повтор не створює дубля
-.venv/bin/python -m practice.action --status  # що зараз лежить у сховищі заявок, $0
+.venv/bin/python -m practice.challenges.d_run           # усі три кроки на тимчасовому сховищі, ~$0.08
+.venv/bin/python -m practice.challenges.d_run request   # лише крок 1: заявка створюється і чекає згоди
+.venv/bin/python -m practice.challenges.d_run confirm   # лише крок 2: згода клієнта підтверджує заявку
+.venv/bin/python -m practice.challenges.d_run repeat    # лише крок 3: повтор не створює дубля
+.venv/bin/python -m practice.challenges.d_run --status  # що зараз лежить у сховищі заявок, $0
 
 # тести челенджа: двофазність, ідемпотентність, права власника, карантин сховища — 19 тестів, $0
-.venv/bin/python -m unittest practice.test_practice.RedirectActionTest
+.venv/bin/python -m unittest practice.challenges.c_tests.RedirectActionTest
 ```
 
 Прогін без аргументів іде на тимчасовому сховищі й реального `out/redirects.json` не чіпає. Окремі кроки,

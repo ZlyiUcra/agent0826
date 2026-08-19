@@ -25,15 +25,15 @@
 Перевірити:
 
 ```bash
-.venv/bin/python -m practice.demo        # шість сцен станів одним прогоном, ~$0.05
-.venv/bin/python -m practice.demo 5 6    # лише безкоштовні сцени, $0
-.venv/bin/python -m practice.run         # щасливий ланцюжок, ~$0.02
+.venv/bin/python -m practice.base.demo        # шість сцен станів одним прогоном, ~$0.05
+.venv/bin/python -m practice.base.demo 5 6    # лише безкоштовні сцени, $0
+.venv/bin/python -m practice.base.run         # щасливий ланцюжок, ~$0.02
 
 # 32 тести основи, $0
-.venv/bin/python -m unittest practice.test_practice.ChainTest \
-  practice.test_practice.BackendContractTest practice.test_practice.RegistrationTest \
-  practice.test_practice.MoneyCheckTest practice.test_practice.DemoTest \
-  practice.test_practice.ResultsFileTest
+.venv/bin/python -m unittest practice.challenges.c_tests.ChainTest \
+  practice.challenges.c_tests.BackendContractTest practice.challenges.c_tests.RegistrationTest \
+  practice.challenges.c_tests.MoneyCheckTest practice.challenges.c_tests.DemoTest \
+  practice.challenges.c_tests.ResultsFileTest
 ```
 
 - [x] **Задача вимагає ЛАНЦЮЖКА: результат першого інструмента потрібен для виклику другого**
@@ -69,7 +69,7 @@
   `test_tool_error_is_recorded_not_crashed` (tool_error), `test_turns_exhausted_when_limit_is_one`,
   `test_api_error_is_caught_and_shaped`, `test_no_tool_used_flag_when_model_answers_straight_away`.
 
-  Наживо всі п'ять показує `practice/demo.py` — по сцені на стан, кожна друкує очікуваний і фактичний
+  Наживо всі п'ять показує `practice/base/demo.py` — по сцені на стан, кожна друкує очікуваний і фактичний
   стан. Дві сцени безкоштовні: `api_error` (справжній 401 на підмінений ключ) і `budget_exhausted`.
   Тест `DemoTest.test_every_declared_state_has_a_scene` не дає переліку сцен розійтися зі станами.
 
@@ -83,7 +83,7 @@
 
 - [x] **У README — 5 реальних прогонів: 1 щасливий + 4 зламані (з реальним виводом, не переказом)**
 
-  Закрито з запасом: **шість** прогонів дослівно, одним запуском `python -m practice.demo` — `ok`,
+  Закрито з запасом: **шість** прогонів дослівно, одним запуском `python -m practice.base.demo` — `ok`,
   `no_tool_used`, `tool_error`, `turns_exhausted`, `api_error`, `budget_exhausted`. Тобто один щасливий
   і п'ять зламаних замість чотирьох. Сумарна вартість $0.0533, кожна сцена з власними токенами,
   вартістю і часом. Вивід у `README.md`, розділ «Реальні прогони», без переказу.
@@ -104,12 +104,12 @@
 Перевірити:
 
 ```bash
-.venv/bin/python -m practice.experiment_a --query period_words  # прогони до/після, ~$0.02
-.venv/bin/python -m practice.experiment_a --hunt                # полювання по кандидатах, ~$0.08
+.venv/bin/python -m practice.challenges.a_experiment --query period_words  # прогони до/після, ~$0.02
+.venv/bin/python -m practice.challenges.a_experiment --hunt                # полювання по кандидатах, ~$0.08
 
 # 22 тести челенджа, $0
-.venv/bin/python -m unittest practice.test_practice.SchemaVariantTest \
-  practice.test_practice.MisroutedArgumentsTest practice.test_practice.DateFilterTest
+.venv/bin/python -m unittest practice.challenges.c_tests.SchemaVariantTest \
+  practice.challenges.c_tests.MisroutedArgumentsTest practice.challenges.c_tests.DateFilterTest
 ```
 
 Челендж відкрито на прохання власника, понад обсяг, узгоджений з радою. Спроб було дві. Перша
@@ -158,12 +158,12 @@
 Перевірити:
 
 ```bash
-.venv/bin/python -m practice.redteam                          # усі п'ятнадцять атак, ~$0.06-0.09
-.venv/bin/python -m practice.redteam --case foreign_tracking  # контрольний прогін виправлення, ~$0.01
-.venv/bin/python -m practice.redteam --list                   # перелік атак і чим вони небезпечні, $0
+.venv/bin/python -m practice.challenges.b_redteam                          # усі п'ятнадцять атак, ~$0.06-0.09
+.venv/bin/python -m practice.challenges.b_redteam --case foreign_tracking  # контрольний прогін виправлення, ~$0.01
+.venv/bin/python -m practice.challenges.b_redteam --list                   # перелік атак і чим вони небезпечні, $0
 
 # 24 тести челенджа, $0
-.venv/bin/python -m unittest practice.test_practice.RedTeamCheckTest
+.venv/bin/python -m unittest practice.challenges.c_tests.RedTeamCheckTest
 ```
 
 Відкрито на прохання власника. Проведено шість раундів — п'ятнадцять атак. Дванадцять провалилися, три
@@ -274,9 +274,9 @@
 Перевірити (усе безкоштовне):
 
 ```bash
-.venv/bin/python -m unittest practice.test_practice -v          # усі 104 тести, $0
-.venv/bin/python -m unittest practice.test_practice.BudgetTest  # 7 тестів бюджету і цін, $0
-PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.run     # жива відмова бюджету, $0
+.venv/bin/python -m unittest practice.challenges.c_tests -v          # усі 104 тести, $0
+.venv/bin/python -m unittest practice.challenges.c_tests.BudgetTest  # 7 тестів бюджету і цін, $0
+PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.base.run     # жива відмова бюджету, $0
 ```
 
 Повний розбір — `README.md`, розділ «Челендж C»: як влаштований мок, обидві демонстрації регресії,
@@ -327,12 +327,12 @@ PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.run     # жива ві�
 Перевірити:
 
 ```bash
-.venv/bin/python -m practice.action           # усі три кроки на тимчасовому сховищі, ~$0.08
-.venv/bin/python -m practice.action request   # окремі кроки — на реальному сховищі
-.venv/bin/python -m practice.action --status  # вміст сховища заявок, $0
+.venv/bin/python -m practice.challenges.d_run           # усі три кроки на тимчасовому сховищі, ~$0.08
+.venv/bin/python -m practice.challenges.d_run request   # окремі кроки — на реальному сховищі
+.venv/bin/python -m practice.challenges.d_run --status  # вміст сховища заявок, $0
 
 # 19 тестів челенджа, $0
-.venv/bin/python -m unittest practice.test_practice.RedirectActionTest
+.venv/bin/python -m unittest practice.challenges.c_tests.RedirectActionTest
 ```
 
 Челендж відкрито рішенням власника вже після ради, з непорушною умовою: право діяти з'являється в курсі
@@ -343,7 +343,7 @@ PRACTICE_BUDGET_USD=0.0001 .venv/bin/python -m practice.run     # жива ві�
 
 - [x] **Інструмент, який ЩОСЬ ЗМІНЮЄ: створює тікет/файл/запис, шле повідомлення**
 
-  `request_redirect` + `confirm_redirect` у `actions.py`: підтверджена заявка на переадресацію лягає
+  `request_redirect` + `confirm_redirect` у `challenges/d_tools.py`: підтверджена заявка на переадресацію лягає
   записом у `out/redirects.json` і переживає процес. Доказ — прогін кроку 1: «записів було 0, стало 1»,
   файл на диску. Сховище пишеться злиттям, записи ніколи не видаляються — стани лише просуваються
   вперед (`pending` → `confirmed`); чужі записи переживають запис нових

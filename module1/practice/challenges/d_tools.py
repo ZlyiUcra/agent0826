@@ -1,6 +1,6 @@
 """
 ЧЕЛЕНДЖ D · дія з наслідками — БЕКЕНД (інструменти переадресації).
-Пара до practice/action.py (точка входу).
+Пара до practice/challenges/d_run.py (точка входу).
 
 Це перший інструмент практики, який ЩОСЬ ЗМІНЮЄ: заявка на переадресацію
 лягає записом у out/redirects.json і переживає процес. Саме тому навколо
@@ -35,7 +35,7 @@ import re
 from datetime import date
 
 from config import OUT_DIR
-from practice.backend import _CUSTOMERS, _DETAILS, normalize_phone
+from practice.common.backend import _CUSTOMERS, _DETAILS, normalize_phone
 
 # Сховище заявок. Живе поруч із practice_results.json і так само переживає
 # процес — інакше «підтвердження наступним повідомленням» було б неможливе:

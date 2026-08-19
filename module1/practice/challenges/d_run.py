@@ -1,13 +1,13 @@
 """
 ЧЕЛЕНДЖ D · дія з наслідками — ТОЧКА ВХОДУ (запуск трьох кроків).
-Пара до practice/actions.py (бекенд-інструменти).
+Пара до practice/challenges/d_tools.py (бекенд-інструменти).
 
-    python -m practice.action                 # усі три кроки по черзі
-    python -m practice.action request         # крок 1: клієнт просить переадресацію
-    python -m practice.action confirm         # крок 2: клієнт підтверджує
-    python -m practice.action repeat          # крок 3: ТЕ САМЕ підтвердження вдруге
-    python -m practice.action --status        # вміст сховища заявок, $0
-    python -m practice.action --help          # довідка
+    python -m practice.challenges.d_run           # усі три кроки по черзі
+    python -m practice.challenges.d_run request   # крок 1: клієнт просить переадресацію
+    python -m practice.challenges.d_run confirm   # крок 2: клієнт підтверджує
+    python -m practice.challenges.d_run repeat    # крок 3: ТЕ САМЕ підтвердження вдруге
+    python -m practice.challenges.d_run --status  # вміст сховища заявок, $0
+    python -m practice.challenges.d_run --help    # довідка
 
 Чому три окремі прогони, а не одна розмова: run_agent не тримає історії між
 викликами — кожен прогін починається з чистого аркуша. Тому підтвердження
@@ -45,13 +45,14 @@ import pathlib
 import sys
 import tempfile
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-import core.agent as agent                                 # noqa: E402
-import domain.backend as course_backend                    # noqa: E402
-from practice import actions as pactions                   # noqa: E402
-from practice import backend as practice_backend           # noqa: E402
-from practice import budget, run as prun                   # noqa: E402
+import core.agent as agent                                      # noqa: E402
+import domain.backend as course_backend                         # noqa: E402
+from practice.base import run as prun                           # noqa: E402
+from practice.challenges import d_tools as pactions             # noqa: E402
+from practice.common import backend as practice_backend         # noqa: E402
+from practice.common import budget                              # noqa: E402
 
 DEFAULT_ACTION_BUDGET_USD = 0.30
 
