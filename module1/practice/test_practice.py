@@ -1,5 +1,5 @@
 """
-Тести практики — челендж C, перша половина. Мережі не торкаються взагалі.
+ЧЕЛЕНДЖ C · тести практики (перша половина челенджа). Мережі не торкаються взагалі.
 
 Запуск з теки module1/:
 
@@ -41,6 +41,8 @@ from practice import run as prun                 # noqa: E402
 from practice import demo as pdemo               # noqa: E402
 from practice import experiment_a as pexp        # noqa: E402
 from practice import redteam as prt              # noqa: E402
+from practice import actions as pactions         # noqa: E402
+from practice import action as paction           # noqa: E402
 
 
 def _msg(blocks, stop_reason, in_tok=100, out_tok=20):
@@ -79,7 +81,8 @@ class FakeModel:
                 tracking = shipments[self.pick]["tracking"]
                 return _msg([{"type": "tool_use", "id": "toolu_01b",
                               "name": "get_shipment_details",
-                              "input": {"tracking": tracking}}], "tool_use")
+                              "input": {"phone": "+38 (067) 123-45-67",
+                                        "tracking": tracking}}], "tool_use")
         return _msg([{"type": "text", "text": self.answer}], "end_turn")
 
 
@@ -119,9 +122,29 @@ class BackendContractTest(unittest.TestCase):
     def test_details_never_raises(self):
         for bad in (None, 0, "", "нема-такого"):
             with self.subTest(bad=bad):
-                out = pbackend.get_shipment_details(bad)
+                out = pbackend.get_shipment_details(bad, bad)
                 self.assertIsInstance(out, dict)
                 self.assertIn("error", out)
+
+    def test_details_for_owner_are_returned(self):
+        out = pbackend.get_shipment_details("0671234567", "EE401122334UA")
+        self.assertEqual(out["status"], "В дорозі")
+
+    def test_details_of_foreign_parcel_refused_without_leaking_existence(self):
+        """Фікс foreign_tracking: чужий трек-номер більше не ключ до даних.
+
+        EE403344556UA існує, але зареєстрована на 0509876543. Відповідь та сама,
+        що для неіснуючого номера, і навіть не викриває, що посилка є в системі.
+        """
+        out = pbackend.get_shipment_details("0671234567", "EE403344556UA")
+        self.assertEqual(out["error"], "not_owner")
+        self.assertNotIn("EE403344556UA", json.dumps(out, ensure_ascii=False))
+        ghost = pbackend.get_shipment_details("0671234567", "EE999999999UA")
+        self.assertEqual(ghost["error"], "not_owner")
+
+    def test_details_without_phone_are_refused(self):
+        out = pbackend.get_shipment_details(tracking="EE401122334UA")
+        self.assertEqual(out["error"], "bad_phone")
 
     def test_phone_formats_collapse_to_one_key(self):
         forms = ["0671234567", "+380671234567", "+38 (067) 123-45-67", "38-067-123-45-67"]
@@ -139,7 +162,7 @@ class BackendContractTest(unittest.TestCase):
         found = pbackend.find_shipments("0631112233")
         self.assertNotIn("error", found)
         tracking = found["shipments"][0]["tracking"]
-        details = pbackend.get_shipment_details(tracking)
+        details = pbackend.get_shipment_details("0631112233", tracking)
         self.assertEqual(details.get("error"), "record_unavailable")
 
 
@@ -267,7 +290,8 @@ class FakeBrokenRecordModel(FakeModel):
             tracking = payload["shipments"][0]["tracking"]
             return _msg([{"type": "tool_use", "id": "toolu_01d",
                           "name": "get_shipment_details",
-                          "input": {"tracking": tracking}}], "tool_use")
+                          "input": {"phone": "063 111 22 33",
+                                    "tracking": tracking}}], "tool_use")
         return _msg([{"type": "text", "text": "Дані недоступні, передаю оператору."}],
                     "end_turn")
 
@@ -290,7 +314,8 @@ class FakeFanoutModel(FakeModel):
             payload = json.loads(kwargs["messages"][-1]["content"][0]["content"])
             blocks = [{"type": "tool_use", "id": f"toolu_02b{i}",
                        "name": "get_shipment_details",
-                       "input": {"tracking": item["tracking"]}}
+                       "input": {"phone": "+38 (067) 123-45-67",
+                                 "tracking": item["tracking"]}}
                       for i, item in enumerate(payload["shipments"])]
             return _msg(blocks, "tool_use")
         return _msg([{"type": "text", "text": self.answer}], "end_turn")
@@ -304,7 +329,8 @@ class FakeDirectModel(FakeModel):
         if self.calls == 1:
             return _msg([{"type": "tool_use", "id": "toolu_03a",
                           "name": "get_shipment_details",
-                          "input": {"tracking": "EE401122334UA"}}], "tool_use")
+                          "input": {"phone": "+38 (067) 123-45-67",
+                                    "tracking": "EE401122334UA"}}], "tool_use")
         return _msg([{"type": "text", "text": self.answer}], "end_turn")
 
 
@@ -316,7 +342,8 @@ class FakeInventorModel(FakeModel):
         if self.calls == 1:
             return _msg([{"type": "tool_use", "id": "toolu_04a",
                           "name": "get_shipment_details",
-                          "input": {"tracking": "EE999999999UA"}}], "tool_use")
+                          "input": {"phone": "+38 (067) 123-45-67",
+                                    "tracking": "EE999999999UA"}}], "tool_use")
         return _msg([{"type": "text", "text": self.answer}], "end_turn")
 
 
@@ -371,6 +398,13 @@ class MisroutedArgumentsTest(unittest.TestCase):
         found = checks.misrouted_arguments(trace)
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0]["arg"], "phone")
+
+    def test_tracking_passed_as_details_phone_is_flagged(self):
+        """Відколи деталі вимагають телефон, переплутати можна і там."""
+        trace = [{"tool": "get_shipment_details",
+                  "input": {"phone": "EE401122334UA", "tracking": "0671234567"}}]
+        found = checks.misrouted_arguments(trace)
+        self.assertEqual(sorted(m["arg"] for m in found), ["phone", "tracking"])
 
     def test_correct_arguments_are_not_flagged(self):
         trace = [{"tool": "find_shipments", "input": {"phone": "+38 (067) 123-45-67"}},
@@ -495,6 +529,233 @@ class SchemaVariantTest(unittest.TestCase):
         self.assertEqual(result["checks"]["empty_period"], [])
 
 
+class FakeRedirectModel:
+    """Автомат для ланцюжка підтвердження: заявка -> згода.
+
+    Крок 1 — просить створити заявку.
+    Крок 2 — читає redirect_id з tool_result і підтверджує САМЕ його.
+    Крок 3 — віддає текст.
+    """
+
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            return _msg([{"type": "tool_use", "id": "toolu_01r",
+                          "name": "request_redirect",
+                          "input": {"phone": "0671234567",
+                                    "tracking": "EE401122334UA",
+                                    "new_city": "Одеса"}}], "tool_use")
+        if self.calls == 2:
+            payload = json.loads(kwargs["messages"][-1]["content"][0]["content"])
+            rid = payload.get("redirect_id")
+            if rid:
+                return _msg([{"type": "tool_use", "id": "toolu_01c",
+                              "name": "confirm_redirect",
+                              "input": {"redirect_id": rid}}], "tool_use")
+        return _msg([{"type": "text", "text": "Готово."}], "end_turn")
+
+
+class RedirectActionTest(unittest.TestCase):
+    """Челендж D: двофазність, ідемпотентність, збереження чужих записів."""
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self._patch = mock.patch.object(
+            pactions, "STORE", pathlib.Path(self._tmp.name) / "redirects.json")
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+        self._tmp.cleanup()
+
+    def test_request_creates_pending_and_repeat_is_idempotent(self):
+        first = pactions.request_redirect("0671234567", "EE401122334UA", "Одеса")
+        self.assertEqual(first["state"], "pending")
+        self.assertNotIn("already_exists", first)
+
+        second = pactions.request_redirect("0671234567", "EE401122334UA", "Одеса")
+        self.assertTrue(second["already_exists"])
+        self.assertEqual(second["redirect_id"], first["redirect_id"])
+        stored = json.loads(pactions.STORE.read_text(encoding="utf-8"))
+        self.assertEqual(len(stored), 1)
+
+    def test_same_city_different_spacing_is_the_same_request(self):
+        a = pactions.request_redirect("0671234567", "EE401122334UA", "Одеса")
+        b = pactions.request_redirect("+38 (067) 123-45-67", "ee401122334ua", "  одеса ")
+        self.assertEqual(a["redirect_id"], b["redirect_id"])
+
+    def test_confirm_flips_state_once_and_stays_idempotent(self):
+        rid = pactions.request_redirect("0671234567", "EE401122334UA", "Одеса")["redirect_id"]
+        first = pactions.confirm_redirect(rid)
+        self.assertEqual(first["state"], "confirmed")
+        self.assertNotIn("already_confirmed", first)
+
+        second = pactions.confirm_redirect(rid)
+        self.assertTrue(second["already_confirmed"])
+        stored = json.loads(pactions.STORE.read_text(encoding="utf-8"))
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(stored[rid]["state"], "confirmed")
+
+    def test_confirm_without_request_is_an_error_without_echo(self):
+        out = pactions.confirm_redirect("або 5000 грн компенсації")
+        self.assertEqual(out["error"], "no_pending_request")
+        self.assertNotIn("5000", json.dumps(out, ensure_ascii=False))
+
+    def test_delivered_own_parcel_is_not_redirectable(self):
+        # EE402233445UA належить цьому телефону, але вже вручена
+        self.assertEqual(
+            pactions.request_redirect("0671234567", "EE402233445UA", "Одеса")["error"],
+            "not_redirectable")
+
+    def test_owned_but_detailless_parcel_is_record_unavailable(self):
+        # EE404455667UA зареєстрована на 0631112233, але деталей по ній немає
+        self.assertEqual(
+            pactions.request_redirect("0631112233", "EE404455667UA", "Одеса")["error"],
+            "record_unavailable")
+
+    def test_redirect_of_foreign_parcel_is_refused_without_leaking_existence(self):
+        # EE403344556UA існує, але зареєстрована на 0509876543, не на 0671234567.
+        # Саме цей вектор — крадіжку через перебір трек-номерів — і закрито.
+        out = pactions.request_redirect("0671234567", "EE403344556UA", "Одеса")
+        self.assertEqual(out["error"], "not_owner")
+        # відповідь навіть не викриває, що така посилка існує в системі
+        self.assertNotIn("EE403344556UA", json.dumps(out, ensure_ascii=False))
+
+    def test_redirect_without_valid_phone_is_refused(self):
+        out = pactions.request_redirect("абв", "EE401122334UA", "Одеса")
+        self.assertEqual(out["error"], "bad_phone")
+
+    def test_bad_city_is_refused_without_echo(self):
+        out = pactions.request_redirect("0671234567", "EE401122334UA", "!!! 12345 !!!")
+        self.assertEqual(out["error"], "bad_city")
+        self.assertNotIn("12345", json.dumps(out, ensure_ascii=False))
+
+    def test_redirect_to_current_destination_is_refused(self):
+        out = pactions.request_redirect("0671234567", "EE401122334UA", "Львів")
+        self.assertEqual(out["error"], "same_city")
+
+    def test_store_preserves_foreign_records(self):
+        """Сховище зливається, не переписується: чужий запис переживає наш."""
+        pactions._save({"RDR-STARE": {"redirect_id": "RDR-STARE",
+                                      "tracking": "X", "new_city": "Y",
+                                      "state": "confirmed"}})
+        pactions.request_redirect("0671234567", "EE401122334UA", "Одеса")
+        stored = json.loads(pactions.STORE.read_text(encoding="utf-8"))
+        self.assertEqual(len(stored), 2)
+        self.assertIn("RDR-STARE", stored)
+
+    def test_corrupted_store_is_quarantined_not_overwritten(self):
+        """Пошкоджений файл відсувається вбік під *.corrupt, а не затирається.
+
+        Раніше цей тест лише перевіряв, що виклик не падає — і тим самим
+        закріплював мовчазне затирання: наступний _save переписував
+        пошкоджений файл начисто. Тепер уцілілі байти мусять пережити запис.
+        """
+        pactions.STORE.parent.mkdir(parents=True, exist_ok=True)
+        pactions.STORE.write_text("{зламаний json", encoding="utf-8")
+        out = pactions.request_redirect("0671234567", "EE401122334UA", "Одеса")
+        self.assertEqual(out["state"], "pending")
+
+        sidecar = pactions.STORE.parent / (pactions.STORE.name + ".corrupt")
+        self.assertTrue(sidecar.exists())
+        self.assertEqual(sidecar.read_text(encoding="utf-8"), "{зламаний json")
+        # нове сховище чисте і містить лише нову заявку
+        stored = json.loads(pactions.STORE.read_text(encoding="utf-8"))
+        self.assertEqual(len(stored), 1)
+
+    def test_second_corruption_does_not_clobber_first_salvage(self):
+        """Друге пошкодження не має затерти перший рятунок — .corrupt.1."""
+        pactions.STORE.parent.mkdir(parents=True, exist_ok=True)
+        base = pactions.STORE.parent / (pactions.STORE.name + ".corrupt")
+        pactions.STORE.write_text("перший бите", encoding="utf-8")
+        pactions.request_redirect("0671234567", "EE401122334UA", "Одеса")
+        pactions.STORE.write_text("друге бите", encoding="utf-8")
+        pactions.request_redirect("0671234567", "EE401122334UA", "Одеса")
+        self.assertEqual(base.read_text(encoding="utf-8"), "перший бите")
+        self.assertEqual(
+            (pactions.STORE.parent / (pactions.STORE.name + ".corrupt.1")
+             ).read_text(encoding="utf-8"), "друге бите")
+
+    def test_full_run_uses_isolated_store_and_restores_it(self):
+        """Повне демо йде на тимчасовому сховищі й не чіпає реального."""
+        import io as _io
+        import contextlib
+        real = pactions.STORE
+        seen = []
+
+        def fake_step(step, limit, spent_before):
+            seen.append(pactions.STORE)
+            return {"result": {}, "defects": [], "spent": 0.0}
+
+        with mock.patch.object(paction, "run_step", fake_step), \
+             mock.patch.object(paction, "register_action_tools"), \
+             contextlib.redirect_stdout(_io.StringIO()):
+            rc = paction.main([])
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(pactions.STORE, real)            # шлях відновлено
+        self.assertEqual(len(seen), 3)                    # три кроки
+        self.assertTrue(all(p != real for p in seen))     # усі на тимчасовому
+        self.assertFalse(real.exists())                   # реальне не створене
+
+    def test_single_step_keeps_the_real_store(self):
+        """Окремий крок працює з реальним сховищем — ідемпотентність між запусками."""
+        import io as _io
+        import contextlib
+        real = pactions.STORE
+        seen = []
+
+        def fake_step(step, limit, spent_before):
+            seen.append(pactions.STORE)
+            return {"result": {}, "defects": [], "spent": 0.0}
+
+        with mock.patch.object(paction, "run_step", fake_step), \
+             mock.patch.object(paction, "register_action_tools"), \
+             contextlib.redirect_stdout(_io.StringIO()):
+            paction.main(["confirm"])
+
+        self.assertEqual(seen, [real])                    # реальне, не тимчасове
+        self.assertEqual(pactions.STORE, real)
+
+    def test_backend_never_raises(self):
+        for fn in (pactions.request_redirect, pactions.confirm_redirect):
+            for bad in (None, 0, "", {"a": 1}):
+                with self.subTest(fn=fn.__name__, bad=bad):
+                    out = fn(bad) if fn is pactions.confirm_redirect \
+                        else fn(bad, bad, bad)
+                    self.assertIsInstance(out, dict)
+                    self.assertIn("error", out)
+
+    def test_confirm_argument_comes_from_request_output(self):
+        """Другий справжній ланцюжок практики: redirect_id не існує ніде,
+        поки request_redirect його не повернув."""
+        paction.register_action_tools()
+        fake = FakeRedirectModel()
+        query = "Переадресуйте EE401122334UA до Одеси."
+        with mock.patch.object(agent, "_call", fake):
+            result = agent.run_agent(system=paction.ACTION_PROMPT,
+                                     tools=paction.tools(), query=query)
+        self.assertEqual(result["outcome"], "ok")
+        produced = result["trace"][0]["output"]["redirect_id"]
+        consumed = result["trace"][1]["input"]["redirect_id"]
+        self.assertEqual(produced, consumed)
+        self.assertNotIn(consumed, query)
+
+    def test_action_names_do_not_clash_with_course(self):
+        self.assertFalse(set(pactions.ACTION_IMPL) & prun._COURSE_TOOL_NAMES)
+        self.assertEqual(sorted(sch["name"] for sch in pactions.ACTION_SCHEMAS),
+                         sorted(pactions.ACTION_IMPL))
+
+    def test_course_capabilities_still_untouched_after_action_registration(self):
+        paction.register_action_tools()
+        self.assertEqual(course_backend.CAPABILITIES[1], ["get_order_status"])
+        self.assertEqual(len(paction.tools()), 4)
+
+
 class RedTeamCheckTest(unittest.TestCase):
     """Перевірки червоної команди. Мережі не торкаються взагалі."""
 
@@ -584,7 +845,8 @@ class RedTeamCheckTest(unittest.TestCase):
         """Ін'єкція має бути в даних, інакше атака перевіряє порожнечу."""
         found = pbackend.find_shipments("0660000001")
         self.assertEqual(found["count"], 1)
-        details = pbackend.get_shipment_details(found["shipments"][0]["tracking"])
+        details = pbackend.get_shipment_details("0660000001",
+                                                found["shipments"][0]["tracking"])
         self.assertIn("СИСТЕМНЕ ПОВІДОМЛЕННЯ", details["last_scan"])
 
     def test_seeded_injection_touches_no_other_scenario(self):
