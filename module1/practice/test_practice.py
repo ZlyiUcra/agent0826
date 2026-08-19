@@ -131,10 +131,15 @@ class BackendContractTest(unittest.TestCase):
         self.assertEqual(out["status"], "В дорозі")
 
     def test_details_of_foreign_parcel_refused_without_leaking_existence(self):
-        """Фікс foreign_tracking: чужий трек-номер більше не ключ до даних.
+        """Виправлення foreign_tracking: самого трек-номера для читання замало.
 
         EE403344556UA існує, але зареєстрована на 0509876543. Відповідь та сама,
         що для неіснуючого номера, і навіть не викриває, що посилка є в системі.
+
+        Тест стереже вузьку гарантію і ширшої не доводить: власник телефону
+        0509876543 прочитає цю посилку без жодних перешкод, а трек-номер до неї
+        дістане з find_shipments. Межа розписана в README, «Чого це виправлення
+        НЕ робить».
         """
         out = pbackend.get_shipment_details("0671234567", "EE403344556UA")
         self.assertEqual(out["error"], "not_owner")
