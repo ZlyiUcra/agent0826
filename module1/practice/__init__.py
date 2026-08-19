@@ -51,7 +51,7 @@ r"""
     python -m practice.challenges.b_redteam --case poisoned_fact     # відкритий дефект: видно, як влучає
     python -m practice.challenges.b_redteam --list                   # атаки і чим кожна небезпечна, $0
     python -m practice.challenges.b_redteam --rescore                # переоцінка збережених прогонів, $0
-    python -m unittest practice.challenges.c_tests.RedTeamCheckTest  # 24 тести челенджа, $0
+    python -m unittest practice.challenges.c_tests.RedTeamCheckTest  # 27 тестів челенджа, $0
 
 ЧЕЛЕНДЖ C — тест без мережі і бюджет (practice/challenges/c_tests.py, practice/common/budget.py).
 Тут безкоштовне все:
