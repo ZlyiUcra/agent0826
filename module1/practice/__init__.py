@@ -45,7 +45,7 @@ r"""
 
 ЧЕЛЕНДЖ B — зламай свого агента (practice/challenges/b_redteam.py):
 
-    python -m practice.challenges.b_redteam                          # усі п'ятнадцять атак, ~$0.06-0.09
+    python -m practice.challenges.b_redteam                          # усі сімнадцять атак, ~$0.27
     python -m practice.challenges.b_redteam --round 3                # лише один раунд, дешевше
     python -m practice.challenges.b_redteam --case foreign_tracking  # виправлений дефект, два промпти, ~$0.01
     python -m practice.challenges.b_redteam --case poisoned_fact     # відкритий дефект: видно, як влучає
@@ -56,7 +56,7 @@ r"""
 ЧЕЛЕНДЖ C — тест без мережі і бюджет (practice/challenges/c_tests.py, practice/common/budget.py).
 Тут безкоштовне все:
 
-    python -m unittest practice.challenges.c_tests -v          # усі 104 тести, $0
+    python -m unittest practice.challenges.c_tests -v          # усі 107 тестів, $0
     python -m unittest practice.challenges.c_tests.BudgetTest  # бюджет і таблиця цін, 7 тестів, $0
     PRACTICE_BUDGET_USD=0.0001 python -m practice.base.run     # жива відмова бюджету, $0
     python -m practice.base.demo 6                             # та сама відмова окремою сценою, $0
