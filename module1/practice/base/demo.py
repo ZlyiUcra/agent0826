@@ -110,7 +110,7 @@ def scene_3(limit):
 def scene_4(limit):
     print("── Сцена 4. turns_exhausted — зрив ліміту кроків ─────────────")
     print("   MAX_TURNS=1: агент встигає лише знайти посилки, переказати їх уже ні.")
-    print("   Замість мовчазного обриву — чесна заглушка і передача оператору.\n")
+    print("   Замість мовчазного обриву — заглушка з поясненням і передача оператору.\n")
     saved = agent.MAX_TURNS
     _play("turns_exhausted", prun.QUERIES["happy"], limit,
           prepare=lambda: setattr(agent, "MAX_TURNS", 1),
@@ -120,7 +120,7 @@ def scene_4(limit):
 def scene_5(limit):
     print("── Сцена 5. api_error — збій сервісу моделі ──────────────────")
     print("   Клієнт підміняється на завідомо невалідний ключ. Це справжній HTTP-")
-    print("   запит із справжньою відмовою 401, а не мок — і коштує нуль.\n")
+    print("   запит із справжньою відмовою 401, а не підміна — і коштує нуль.\n")
     saved = agent.client
     _play("api_error", prun.QUERIES["happy"], limit,
           prepare=lambda: setattr(agent, "client",

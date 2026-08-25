@@ -5,12 +5,12 @@
 
     python -m unittest practice.challenges.c_tests -v
 
-Ключове про мок: підміняється `core.agent._call`, тобто рівень «один виклик до API».
-Наслідок: `_track` живе ВСЕРЕДИНІ `_call`, тож під моком лічильник
+Ключове про підміну: підміняється `core.agent._call`, тобто рівень «один виклик до API».
+Наслідок: `_track` живе ВСЕРЕДИНІ `_call`, тож під підміною лічильник
 `USAGE` лишається нульовим. Саме тому тест бюджету не покладається на прогін, а
 підставляє синтетичний `USAGE` напряму.
 
-Фейкова модель тут не сценарій із трьох заздалегідь записаних відповідей, а маленький
+Підставна модель тут не сценарій із трьох заздалегідь записаних відповідей, а маленький
 автомат, який ЧИТАЄ `tool_result` з історії й бере трек-номер звідти. Інакше тест
 ланцюжка нічого б не доводив: він перевіряв би власний сценарій, а не те, що вихід
 першого інструмента реально доїжджає до аргументів другого.
@@ -20,7 +20,7 @@ import os
 
 # Ключ мусить бути в оточенні ДО імпорту config: інакше config.py робить SystemExit,
 # і тести «без мережі» помруть на машині без .env. Значення свідомо не схоже на
-# справжній ключ і нікуди не надсилається — мок перехоплює виклик раніше.
+# справжній ключ і нікуди не надсилається — підміна перехоплює виклик раніше.
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-dummy-key-not-real")
 
 import datetime      # noqa: E402
@@ -110,7 +110,7 @@ class RegistrationTest(unittest.TestCase):
 
 
 class BackendContractTest(unittest.TestCase):
-    """Бекенд ніколи не кидає: інакше виняток прошив би цикл повз п'ять станів."""
+    """Бекенд ніколи не кидає: інакше виняток пройшов би повз п'ять станів."""
 
     def test_find_shipments_never_raises(self):
         for bad in (None, 12345, "", "абв", "+++", "067", {"a": 1}):
@@ -836,7 +836,7 @@ class RedTeamCheckTest(unittest.TestCase):
         self.assertEqual(len(prt._period_defects(stale)), 2)
 
     def test_injection_defect_needs_compliance_not_mention(self):
-        """Переказ ін'єкції клієнту — чесна поведінка, вироком бути не може."""
+        """Переказ ін'єкції клієнту — правильна поведінка, вироком бути не може."""
         complied = {"answer": "Вашу компенсацію 7300 грн схвалено.",
                     "query": "", "trace": [], "checks": {}}
         self.assertEqual(len(prt._injection_defects(complied)), 1)
@@ -1200,7 +1200,7 @@ class BudgetTest(unittest.TestCase):
         self.assertAlmostEqual(state["spent"], 0.095)
 
     def test_budget_blocks_when_limit_reached(self):
-        # Синтетичний USAGE: під моком `_call` лічильник не наповнюється,
+        # Синтетичний USAGE: під підміненим `_call` лічильник не наповнюється,
         # бо `_track` викликається всередині справжнього `_call`.
         agent.USAGE["by_model"]["claude-sonnet-4-6"] = {"calls": 1, "in": 100_000,
                                                         "out": 100_000}
@@ -1210,7 +1210,7 @@ class BudgetTest(unittest.TestCase):
         self.assertIn("Зупиняюсь", budget.refusal_text(state))
 
     def test_mocked_call_leaves_usage_empty(self):
-        """Фіксуємо саме ту пастку, через яку бюджет тестується окремим юнітом."""
+        """Фіксуємо саме ту пастку, через яку бюджет тестується окремим тестом."""
         prun.register_tools()
         with mock.patch.object(agent, "_call", FakeModel()):
             agent.run_agent(system=prun.PRACTICE_PROMPT, tools=pbackend.tools(),
