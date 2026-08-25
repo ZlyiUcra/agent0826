@@ -1,14 +1,14 @@
-# Практика модуля 2 — агент над власним корпусом документів
+# Практика модуля 2 — агент над власними документами
 
 Домашнє завдання курсу. Живе всередині `module2/`, але курсовим матеріалом **не є**: жоден курсовий файл
-тут не змінено. Практика перевикористовує ядро (`core/agent.py`, `core/cost.py`) і додає власний корпус
-документів, два різні пошуки по ньому і один інструмент, яким агент цим пошуком користується.
+тут не змінено. Практика перевикористовує ядро (`core/agent.py`, `core/cost.py`) і додає власні документи,
+два різні пошуки по них і один інструмент, яким агент цим пошуком користується.
 
 Статус чекбоксів картки — у `CHECKLIST.md`. Тут — як воно влаштоване і що показали прогони.
 
 ## Від задуму до результату, коротко
 
-Задум був узяти документи, на яких пошук по словах свідомо програє. Специфікація ECMAScript підходить
+Задум був узяти документи, на яких пошук по словах не має шансів. Специфікація ECMAScript підходить
 ідеально: вона описує звичні речі мовою, якою про них ніхто не говорить — «підмінний об'єкт» там зветься
 Proxy, а читання властивості описане через внутрішній метод `[[Get]]`.
 
@@ -17,7 +17,7 @@ Proxy, а читання властивості описане через вну
 інструментом, щоб він сам вирішував, коли і що шукати.
 
 Далі задум був простий: підібрати межу схожості, нижче якої агент мовчить. Вимір його зруйнував — питання
-з відповіддю в корпусі і питання без неї дали однакові оцінки, бо схожість міряє тему, а тема в них спільна.
+з відповіддю в документах і питання без неї дали однакові оцінки, бо схожість міряє тему, а тема в них спільна.
 Довелося визнати межу лише відсічкою для чужої теми, а відмову покласти на модель, яка читає сам текст
 фрагментів.
 
@@ -41,7 +41,7 @@ Proxy, а читання властивості описане через вну
 «Let keys be ? O.[[OwnPropertyKeys]]()». Розрив між словами питання і словами документа тут максимальний,
 і саме на цьому розриві видно різницю між пошуком по словах і пошуком по змісту.
 
-Друга особливість — корпус однорідний. Усі вісімнадцять документів про одне: про об'єкти в JavaScript.
+Друга особливість — документи однорідні. Усі вісімнадцять про одне: про об'єкти в JavaScript.
 Це виявилося важливішим за перше, і чому саме — у розділі «Нижня межа відмови і те, чого вона не закриває».
 
 Що взято: тип Object і його внутрішні методи, інваріанти цих методів, звичайні об'єкти, сім видів
@@ -49,7 +49,7 @@ Proxy, а читання властивості описане через вну
 модулів, незмінні прототипи), Proxy, і об'єктні обгортки Object, Boolean, Symbol, Number, String.
 Разом 253 406 байтів, від 1570 до 52 257 символів у документі.
 
-Запити до агента англійські, бо корпус англійський. Питати українською можна — модель ембедингів
+Запити до агента англійські, бо документи англійські. Питати українською можна — модель ембедингів
 багатомовна, — але тоді до різниці «слова проти змісту» додається ще й різниця мов, і незрозуміло, що
 саме показує прогін.
 
@@ -78,7 +78,7 @@ practice/
 
 ## Як влаштовані ключові рішення
 
-### Корпус — це вісімнадцять документів, а індексуються фрагменти
+### Документів вісімнадцять, а індексуються фрагменти
 
 Розділи специфікації різні за розміром у тридцять три рази: найменший (10.4.7, незмінний прототип) —
 1570 символів, найбільший (22.1, String Objects) — 52 257. Якби одиницею пошуку був цілий документ, то на
@@ -96,11 +96,11 @@ practice/
 який сам довший за неї — а в специфікації це довгий алгоритм суцільним списком кроків, — не ріжеться, бо
 розрив посередині кроку гірший за перевищення межі. Звідси найдовший фрагмент у 1543 символи.
 
-Ще одне різання зробив сам корпус. Розділ 6.1.7 The Object Type містить підрозділи 6.1.7.1–6.1.7.4, а вони
+Ще одне різання зробили самі документи. Розділ 6.1.7 The Object Type містить підрозділи 6.1.7.1–6.1.7.4, а вони
 вивантажені ще й окремими документами — тобто три файли з вісімнадцяти повторюють шматки першого слово в
 слово. Без злиття пошук повертав обидві копії, і в перші два рядки двічі потрапляв той самий текст. Однакові
-тексти тепер зливаються в один фрагмент; п'ятнадцять повторів прибрано. Корпус від цього не меншає:
-документів як було вісімнадцять, так і лишається.
+тексти тепер зливаються в один фрагмент; п'ятнадцять повторів прибрано. Документів від цього не меншає:
+як було вісімнадцять, так і лишається.
 
 Разом: 283 унікальні фрагменти, від 200 до 1543 символів, у середньому 746.
 
@@ -109,7 +109,7 @@ practice/
 Показати, що вектори виграють у пошуку, який рахує голі перетини слів, легко й нічого не доводить. Тому
 точкою відліку тут є BM25, той самий алгоритм, що стоїть за замовчуванням у Postgres, Elasticsearch і Lucene.
 Він рахує три речі: скільки разів слово запиту трапилось у фрагменті, але з насиченням; наскільки слово
-рідкісне в усьому корпусі — «prototype» є всюди й важить мало, «lastIndexOf» є в одному місці й важить
+рідкісне в усіх документах — «prototype» є всюди й важить мало, «lastIndexOf» є в одному місці й важить
 багато; і наскільки фрагмент довгий, бо в довгому більше шансів зачепити слово випадково.
 
 Пошук по змісту — `intfloat/multilingual-e5-small`, 118 мільйонів параметрів, локально на процесорі.
@@ -124,7 +124,7 @@ practice/
 потрапляють у промпт завжди, потрібні вони чи ні. Тут пошук відданий агентові інструментом `search_docs`, і він сам
 вирішує, що і скільки разів шукати.
 
-Різниця видно на прогоні `proxy` нижче: питання складене з двох частин, і агент зробив шість пошуків
+Різниця видно на прогоні `proxy` нижче: питання складене з двох частин, і агент зробив чотири пошуки
 поспіль, щоразу міняючи формулювання. Одна домішка в промпт дала б суміш із двох тем.
 
 Реєстрація інструмента потребувала обхідного маневру, і його варто розуміти. `core/agent.py` імпортує
@@ -137,21 +137,21 @@ practice/
 
 ### Нижня межа відмови і те, чого вона не закриває
 
-Задум був звичайний: виміряти косинуси для питань, відповідь на які в корпусі є, і для питань, яких корпус
-не покриває, і поставити поріг у проміжок між ними. Нижче порога пошук нічого не віддає, агент не має з чого
+Задум був звичайний: виміряти косинуси для питань, відповідь на які в документах є, і для питань, яких документи
+не покривають, і поставити поріг у проміжок між ними. Нижче порога пошук нічого не віддає, агент не має з чого
 вигадувати.
 
 Проміжку немає. Вимір (`python -m practice.base.threshold`, вивід нижче) дає 0.831–0.883 для восьми питань
 з відповіддю і 0.732–0.845 для шести питань без. Набори перекриваються.
 
 Причина не в моделі й не в порозі. Питання «How does async iteration over a stream work?» (0.845) і «What
-is the difference between let and var?» (0.818) — це питання про JavaScript, а весь корпус про JavaScript.
+is the difference between let and var?» (0.818) — це питання про JavaScript, а всі документи про JavaScript.
 Схожість міряє тему, а не наявність відповіді. Окремо додає шуму розділ 6.1.7.4 Well-Known Intrinsic
 Objects: це суцільна таблиця імен від `%Array%` до `%WeakSet%`, і вона виявилася найкращим збігом одразу
 для трьох сторонніх питань — про асинхронну ітерацію, про npm і про борщ.
 
 Тому 0.80 — це нижня межа, а не роздільна риса: вона відсікає чуже, але не відділяє знайдене від
-незнайденого. Закриває вона рівно один випадок: запит, у якого з корпусом немає спільної теми. «What is
+незнайденого. Закриває вона рівно один випадок: запит, у якого з нашими документами немає спільної теми. «What is
 the capital of France?» (0.732) і «What is the recipe for borscht?» (0.768) крізь неї не проходять, і на
 них інструмент повертає порожньо.
 
@@ -185,7 +185,7 @@ python -m practice.base.compare
 ```
 
 Уперше він завантажить ваги моделі ембедингів — 471 МБ з Hugging Face — і порахує вектори для всіх 283
-фрагментів корпусу, приблизно дві хвилини на процесорі. Далі вектори лягають у `practice/index/`, і всі
+фрагментів, приблизно дві хвилини на процесорі. Далі вектори лягають у `practice/index/`, і всі
 наступні запуски беруть їх звідти за секунду. Мережа потрібна рівно один раз, для цього завантаження.
 
 У виводі шість запитів, під кожним два блоки — що знайшов BM25 і що знайшли ембединги, плюс місце
@@ -212,22 +212,28 @@ python -m practice.base.ask --list             # перелік сценарії
 Потрібен ключ у `module2/.env`. Модель — `claude-sonnet-4-6`, $3 за мільйон вхідних токенів і $15 за
 мільйон вихідних. Переписування запиту, якщо його ввімкнути, іде на `claude-haiku-4-5` за $1 і $5.
 
-Ціни нижче — з реальних прогонів, не з оцінок:
+Ціни нижче — з реальних прогонів 25 серпня, усі п'ять за один захід:
 
 ```bash
-python -m practice.base.ask            # replace — $0.0232
-python -m practice.base.ask proxy      #           $0.0816
+python -m practice.base.ask            # replace — $0.0253
+python -m practice.base.ask proxy      #           $0.0517
 python -m practice.base.ask absent     #           $0.0041
-python -m practice.base.ask known      #           $0.0233
-python -m practice.base.ask thin       #           $0.0232
+python -m practice.base.ask known      #           $0.0412
+python -m practice.base.ask thin       #           $0.0225
 ```
 
-Разом ці п'ять — приблизно $0.155.
+Разом ці п'ять — приблизно $0.145.
 
-Чому `proxy` коштує вчетверо більше за решту. Питання там складене з двох частин, агент зробив шість
-пошуків підряд, і кожен наступний виклик до моделі несе в собі всі попередні знахідки. Вхідних токенів
-набігло 19 278 проти чотирьох тисяч у звичайному сценарії. Це нормальна поведінка агентного циклу, і саме
-тому в `config.py` стоїть `MAX_TURNS=6` — межа, за яку він не вийде.
+Числа не повторюються від прогону до прогону, і різниця буває в півтора-два рази. Причина в тому, що
+агент сам вирішує, скільки разів шукати, і рішення це щоразу інше. Той самий `proxy` при попередньому
+вимірі зробив шість пошуків і коштував $0.0816, тепер зробив чотири і коштував $0.0517. `known` пішов у
+зворотний бік: було два пошуки і $0.0233, стало три і $0.0412. Тому ці ціни — порядок величини, а не
+константа.
+
+Чому `proxy` найдорожчий. Питання там складене з двох частин, агент шукає по кожній окремо, і кожен
+наступний виклик до моделі несе в собі всі попередні знахідки. Вхідних токенів набігло 10 096 проти
+4 322 у сценарії `replace`. Це нормальна поведінка агентного циклу, і саме тому в `config.py` стоїть
+`MAX_TURNS=6` — межа, за яку він не вийде.
 
 Найдешевший — `absent`, чотири десятих цента: агент не зробив жодного пошуку, побачив, що питання про
 географію, і відмовився одразу.
@@ -235,14 +241,17 @@ python -m practice.base.ask thin       #           $0.0232
 ### Перемикачі
 
 ```bash
-python -m practice.base.ask known --rewrite    # $0.0377
-python -m practice.base.ask absent --rewrite   # $0.0039
+python -m practice.base.ask known --rewrite    # $0.0353
+python -m practice.base.ask absent --rewrite   # $0.0038
 python -m practice.base.ask known --lexical    # той самий агент на BM25
 PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 ```
 
-`--rewrite` вмикає переписування запиту через Haiku. Прогін дорожчає приблизно в півтора раза: у `known`
-було $0.0233, стало $0.0377, бо додалися три виклики Haiku і два зайві пошуки.
+`--rewrite` вмикає переписування запиту через Haiku. Сам механізм додає три виклики Haiku і два зайві
+пошуки, і це копійки: Haiku коштує втричі дешевше за Sonnet, а пошук не коштує нічого. У вимірі 25 серпня
+`known --rewrite` вийшов навіть дешевшим за `known` без нього — $0.0353 проти $0.0412, — бо агент того разу
+дійшов до відповіді за три кроки замість чотирьох. Ціну прогону вирішує кількість кроків Sonnet, а не
+переписування.
 
 `--lexical` пускає того самого агента не на ембедингах, а на BM25 — видно, як міняється відповідь від
 самої лише заміни пошуку.
@@ -258,142 +267,159 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 
 ### Повний перезнім усіх доказів
 
-П'ять базових сценаріїв плюс три з перемикачами — приблизно $0.20. Усе інше безкоштовне, але забере
+П'ять базових сценаріїв плюс два з `--rewrite` — приблизно $0.19. Усе інше безкоштовне, але забере
 близько десяти хвилин процесорного часу.
 
 ## Реальні прогони
 
-Чотири сценарії, один прогін кожного, модель `claude-sonnet-4-6`, `MAX_TURNS=6`. Разом $0.1322. Вивід
+Чотири сценарії, один прогін кожного, модель `claude-sonnet-4-6`, `MAX_TURNS=6`. Разом $0.1223. Вивід
 нижче — дослівний, разом із форматуванням Markdown, яке модель вставила у відповідь попри вказівку в
 промпті писати простим текстом.
 
 ### Сценарій replace — людське формулювання замість назви методу
 
 ```
-── Практика М2 · сценарій: replace · модель claude-sonnet-4-6 · MAX_TURNS=6 ──
-  корпус:       283 фрагментів з 18 документів специфікації
+── Практика М2 · сценарій: replace · модель claude-sonnet-4-6 · MAX_TURNS=6 · переписування вимкнено ──
+  документи:    18 розділів специфікації, 283 фрагментів
   запит:        «How do I replace part of a text with something else, and what happens to the rest of the string?»
   пошук:        vector
-  outcome:      ok  ·  кроків: 2  ·  129.81 с
+  outcome:      ok  ·  кроків: 2  ·  157.26 с
   пошук:        «replacing a substring inside a string» → 3: 18-string-objects#22.1.3.20/2, 18-string-objects#22.1.3.19, 18-string-objects#22.1.3.19.1/1
   пошук:        «String replace method» → 3: 18-string-objects#22.1.3.20/2, 18-string-objects#22.1.3.19, 18-string-objects#22.1.3.19.1/1
   відповідь:
-    Here is what the ECMAScript specification says about replacing part of a string:
+    Here is a thorough explanation of how string replacement works, based directly on the specification.
     
-    **`String.prototype.replace(searchValue, replaceValue)`** [22.1.3.19]
+    **The two replacement methods**
     
-    This method searches the string for the first occurrence of `searchValue` and replaces it. Here is exactly what happens, step by step:
+    There are two methods available: `String.prototype.replace` and `String.prototype.replaceAll`. Both take a search value and a replace value.
     
-    1. The string value (the `this` value) is converted to a String, and `searchValue` is also converted to a String (unless it is an object with a `Symbol.replace` method, in which case that method is called instead).
-    2. The method searches for the first position where `searchValue` occurs in the string, starting from index 0.
-    3. If the search value is not found, the original string is returned unchanged.
-    4. If it is found, the string is split into two parts around the match:
-       - "preceding" — the substring from the beginning of the string up to (but not including) the match.
-       - "following" — the substring starting immediately after the end of the match, going to the end of the string.
-    5. The replacement is computed — either by calling `replaceValue` as a function (if it is callable), or by processing it as a string template via an internal operation called `GetSubstitution`.
-    6. The final result is the string-concatenation of "preceding", then "replacement", then "following".
+    **How `String.prototype.replace` works** [18-string-objects#22.1.3.19]
     
-    So the rest of the string — everything before and after the matched portion — is preserved exactly as-is. Only the matched portion is swapped out.
+    1. The method first coerces the `this` value to a String.
+    2. If the `searchValue` is an object that has a `Symbol.replace` method (like a regular expression), that method is called instead, delegating the work to it.
+    3. Otherwise, both `searchValue` and (if it is not a function) `replaceValue` are coerced to Strings.
+    4. The method finds the first position of the search string inside the original string using `StringIndexOf`, starting from position 0.
+    5. If the search string is not found, the original string is returned unchanged.
+    6. If it is found, the string is split into two parts around the match:
+       - "preceding": the substring from the start up to (but not including) the match position.
+       - "following": the substring starting right after the end of the match.
+    7. The replacement value is then computed. If `replaceValue` is a function, it is called with the matched string, the match position, and the full original string, and its return value (coerced to a String) is used as the replacement. If it is a plain string, the `GetSubstitution` operation is used to process any special substitution patterns in it.
+    8. The final result returned is the string-concatenation of: **preceding + replacement + following**.
     
-    **`String.prototype.replaceAll(searchValue, replaceValue)`** [22.1.3.20]
+    So the rest of the string — both before and after the match — is preserved exactly as it was, and only the matched portion is replaced.
     
-    This method works similarly but replaces every occurrence, not just the first. It collects all match positions, then builds the result by iterating through them: for each match, it appends the preserved text between the end of the last match and the start of the current match, then appends the replacement. After the last match, if there is any remaining text in the string, that remainder is appended to the result as well.
+    **How `String.prototype.replaceAll` works** [18-string-objects#22.1.3.20/2]
     
-    **The `replaceValue` can be a function** [22.1.3.19]
+    `replaceAll` follows the same logic but iterates over every match position in the string, not just the first. For each match it collects the text between the end of the last match and the start of the current one (the "preserved" segment), computes the replacement, and concatenates them together. After the last match, if there is any remaining text after it, that trailing portion is also appended to the result. This ensures that all text outside the matched portions is kept intact.
     
-    If `replaceValue` is callable, it is invoked with the matched substring, the position of the match, and the full original string as arguments, and its return value (converted to a String) is used as the replacement.
+    **Special substitution patterns** [18-string-objects#22.1.3.19.1/1]
     
-    In summary: only the matched portion of the string is replaced; everything before it ("preceding") and everything after it ("following") is kept and concatenated around the new replacement to form the returned string.
-  вартість:     $0.0232  (2 викликів, 4322 in / 683 out)
+    When the `replaceValue` is a plain string, `GetSubstitution` processes it for special dollar-sign patterns. For example, `$$` is replaced by a literal `$`, `$&` is replaced by the matched substring itself, and `` $` `` is replaced by the portion of the original string that precedes the match. This allows you to reference parts of the original string within your replacement string.
+    
+    In summary: only the matched portion is substituted. Everything before the first match and everything after it (or between matches in `replaceAll`) is passed through to the result unchanged.
+  вартість:     $0.0253  (2 викликів, 4322 in / 819 out)
   збережено:    /mnt/c/Projects/fwdays/agent0826/module2/practice/out/practice_results.json
 ```
 
-### Сценарій proxy — складене питання, шість пошуків
+### Сценарій proxy — складене питання, чотири пошуки
 
 Питання з двох частин: що заважає Proxy збрехати і як саме читається властивість крізь нього.
-Агент розклав його на шість пошуків, щоразу міняючи формулювання, і зібрав відповідь із того, що
-повернулося. Це найдорожчий прогін набору — $0.0816 проти двох-трьох центів у решти, бо кожен
+Агент розклав його на чотири пошуки, щоразу міняючи формулювання, і зібрав відповідь із того, що
+повернулося. Це найдорожчий прогін набору — $0.0517 проти двох-чотирьох центів у решти, бо кожен
 наступний виклик несе в собі всі попередні знахідки.
 
 ```
-── Практика М2 · сценарій: proxy · модель claude-sonnet-4-6 · MAX_TURNS=6 ──
-  корпус:       283 фрагментів з 18 документів специфікації
+── Практика М2 · сценарій: proxy · модель claude-sonnet-4-6 · MAX_TURNS=6 · переписування вимкнено ──
+  документи:    18 розділів специфікації, 283 фрагментів
   запит:        «When a proxy stands in for another object, what stops it from reporting a value that contradicts the real object, and how does reading a property through it actually work?»
   пошук:        vector
-  outcome:      ok  ·  кроків: 4  ·  167.32 с
-  пошук:        «Proxy invariants consistency checks traps» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.11/2, 13-proxy-object-internal-methods-and-internal-slots#10.5.4, 13-proxy-object-internal-methods-and-internal-slots#10.5/3
-  пошук:        «Proxy get trap [[Get]] property reading» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.8/1, 13-proxy-object-internal-methods-and-internal-slots#10.5.5/1, 13-proxy-object-internal-methods-and-internal-slots#10.5.7
-  пошук:        «Proxy [[Get]] invariants non-configurable non-writable accessor» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.5/2, 13-proxy-object-internal-methods-and-internal-slots#10.5.8/1, 13-proxy-object-internal-methods-and-internal-slots#10.5.6/2
-  пошук:        «Proxy [[GetOwnProperty]] invariants non-configurable configurable extensible» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.5/2, 13-proxy-object-internal-methods-and-internal-slots#10.5.11/2, 13-proxy-object-internal-methods-and-internal-slots#10.5.6/2
-  пошук:        «Proxy [[Get]] invariants note value accessor undefined» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.8/1, 13-proxy-object-internal-methods-and-internal-slots#10.5.9/1, 13-proxy-object-internal-methods-and-internal-slots#10.5.1
-  пошук:        «ValidateNonRevokedProxy revoked proxy handler null» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.14, 13-proxy-object-internal-methods-and-internal-slots#10.5.1, 13-proxy-object-internal-methods-and-internal-slots#10.5.9/1
+  outcome:      ok  ·  кроків: 3  ·  166.16 с
+  пошук:        «proxy invariant validation trap result contradicts target» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.4, 13-proxy-object-internal-methods-and-internal-slots#10.5.13, 13-proxy-object-internal-methods-and-internal-slots#10.5.14
+  пошук:        «proxy get property trap handler target» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.8/1, 13-proxy-object-internal-methods-and-internal-slots#10.5.5/1, 13-proxy-object-internal-methods-and-internal-slots#10.5.11/1
+  пошук:        «proxy [[Get]] invariants non-configurable non-writable data property accessor undefined getter» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.8/2, 13-proxy-object-internal-methods-and-internal-slots#10.5.5/2, 13-proxy-object-internal-methods-and-internal-slots#10.5.8/1
+  пошук:        «proxy [[GetOwnProperty]] invariants non-configurable trap result reported» → 3: 13-proxy-object-internal-methods-and-internal-slots#10.5.11/2, 13-proxy-object-internal-methods-and-internal-slots#10.5.5/2, 13-proxy-object-internal-methods-and-internal-slots#10.5.7
   відповідь:
-    Here is a full, precise account drawn entirely from the specification.
+    Here is a thorough explanation drawn directly from the specification.
     
     ---
     
-    **Part 1: What stops a Proxy from lying — the invariant enforcement system**
+    **Part 1: What stops a proxy from lying about the real object?**
     
-    The specification is explicit that handler traps can be arbitrary ECMAScript code, so a handler could in principle return anything. The protection against contradictions comes from a set of hard-coded integrity checks that every Proxy internal method runs after calling the trap, before it returns the result to the caller. As the spec states: "Some of the internal method invariants defined in 6.1.7.3 are essential integrity invariants. These invariants are explicitly enforced by the Proxy object internal methods specified in this section." [13-proxy-object-internal-methods-and-internal-slots#10.5/3]
+    The specification builds an invariant-enforcement layer directly into every internal method of a Proxy exotic object. The handler's trap is called, its result is captured, and then the engine compares that result against the actual state of the target before ever returning anything to the caller. If the result contradicts the target in a forbidden way, a TypeError is thrown. This happens in several places:
     
-    The enforcement works differently for each operation, but several examples illustrate the pattern:
+    **[[Get]] invariants** [13-proxy-object-internal-methods-and-internal-slots#10.5.8/2]
     
-    For property descriptor queries ([[GetOwnProperty]]), the spec prohibits a whole family of misrepresentations. The trap may not report a property as non-existent if it exists as a non-configurable own property of the real target, nor may it report a property as non-existent if the target is non-extensible, nor may it invent a property that does not exist on a non-extensible target. It also may not report a property as non-configurable unless the target actually has a corresponding non-configurable property, and may not report a property as both non-configurable and non-writable unless the target actually has that exact combination. [13-proxy-object-internal-methods-and-internal-slots#10.5.5/2]
+    After the "get" trap returns a value (trapResult), the engine fetches the target's own property descriptor for the same key. Two contradictions are forbidden:
     
-    For key enumeration ([[OwnPropertyKeys]]), the result must include every key of every non-configurable own property on the target, and if the target is non-extensible it must contain exactly the own property keys of the target — no more and no fewer. [13-proxy-object-internal-methods-and-internal-slots#10.5.11/2]
+    1. If the target's own property is a non-writable, non-configurable data property, then trapResult must be the SameValue as that property's [[Value]]. If it is not, a TypeError is thrown.
+    2. If the target's own property is a non-configurable accessor whose [[Getter]] is undefined, then trapResult must itself be undefined. If it is not, a TypeError is thrown.
     
-    For extensibility reporting ([[PreventExtensions]]), the trap may only return true (claiming extensions are prevented) if the target is genuinely non-extensible. [13-proxy-object-internal-methods-and-internal-slots#10.5.4]
+    In other words, the proxy cannot invent a different value for a property that the target has permanently locked down.
     
-    For prototype queries ([[GetPrototypeOf]]), if the target is non-extensible, the trap's result must be exactly the same value as the target's own prototype — a SameValue comparison is performed and a TypeError is thrown if they differ. [13-proxy-object-internal-methods-and-internal-slots#10.5.1]
+    **[[GetOwnProperty]] invariants** [13-proxy-object-internal-methods-and-internal-slots#10.5.5/2]
     
-    When a violation is detected the engine throws a TypeError immediately, before the caller ever sees the fabricated value. It is the engine, not the programmer, that runs these checks — they cannot be turned off.
+    After the "getOwnPropertyDescriptor" trap runs, the engine applies a battery of checks against the real target descriptor. The full list of things that are forbidden:
     
-    There is also one additional gate that runs before anything else on every single trap invocation: ValidateNonRevokedProxy checks whether the proxy has been revoked by verifying that [[ProxyTarget]] is not null, and throws a TypeError immediately if it is. [13-proxy-object-internal-methods-and-internal-slots#10.5.14]
+    - A property cannot be reported as non-existent if it exists as a non-configurable own property of the target.
+    - A property cannot be reported as non-existent if the target is non-extensible and the property exists on it.
+    - A property cannot be reported as existent if it does not exist on the target and the target is non-extensible.
+    - A property cannot be reported as non-configurable unless it actually is non-configurable on the target.
+    - A property cannot be reported as both non-configurable and non-writable unless it actually is both on the target.
+    
+    **[[HasProperty]] invariants** [13-proxy-object-internal-methods-and-internal-slots#10.5.7]
+    
+    If the "has" trap says a property does not exist (returns false), the engine still checks the target. If the property exists on the target as a non-configurable own property, or if the property exists and the target is non-extensible, a TypeError is thrown. The proxy cannot hide a property that cannot be removed.
+    
+    **[[PreventExtensions]] invariant** [13-proxy-object-internal-methods-and-internal-slots#10.5.4]
+    
+    If the "preventExtensions" trap returns true (claiming extensions are now prevented), the engine checks whether the target is actually non-extensible. If the target is still extensible, a TypeError is thrown. The proxy cannot claim to have locked the object down when it hasn't.
+    
+    The common thread in all of these is the same: the specification explicitly queries the real target after the trap fires and throws a TypeError whenever the trap's answer contradicts what the target's actual state mandates.
     
     ---
     
-    **Part 2: How reading a property through a Proxy actually works — [[Get]] step by step**
+    **Part 2: How does reading a property through a proxy actually work?**
     
-    Reading a property triggers the [[Get]] internal method, which takes a property key and a receiver (the value to use as `this` for any getter). [13-proxy-object-internal-methods-and-internal-slots#10.5.8/1]
+    The [[Get]] internal method on a Proxy exotic object [13-proxy-object-internal-methods-and-internal-slots#10.5.8/1] follows these steps:
     
-    The steps are as follows:
+    1. First, ValidateNonRevokedProxy is called. If the proxy has been revoked (its [[ProxyTarget]] is null), a TypeError is thrown immediately [13-proxy-object-internal-methods-and-internal-slots#10.5.14].
     
-    First, ValidateNonRevokedProxy is called, throwing a TypeError if the proxy has been revoked.
+    2. The target object is taken from the proxy's [[ProxyTarget]] internal slot, and the handler object is taken from [[ProxyHandler]].
     
-    Next, [[ProxyTarget]] and [[ProxyHandler]] are retrieved. The spec asserts that if the proxy is live, the handler is guaranteed to be an Object.
+    3. The engine calls GetMethod on the handler looking for a property named "get". This is the trap.
     
-    The handler is then asked for a method named "get" using GetMethod. This is the critical branching point: if no "get" method exists on the handler (the result is undefined), the operation is forwarded directly to the target by calling target.[[Get]](propertyKey, receiver), bypassing all trap logic entirely. The proxy is fully transparent in this case.
+    4. If no "get" trap is found (trap is undefined), the operation falls through transparently: the engine simply calls target.[[Get]](propertyKey, receiver) directly, as if the proxy weren't there.
     
-    If a "get" trap does exist, it is called with three arguments: the target, the property key, and the receiver. The return value of the trap is captured as trapResult.
+    5. If a "get" trap is found, the engine calls it as: Call(trap, handler, « target, propertyKey, receiver »). The trap receives the target object, the property key being read, and the receiver (the original object the [[Get]] was triggered on, which could be the proxy itself or something further down a prototype chain).
     
-    After the trap returns, the spec does not simply hand trapResult back. It immediately calls target.[[GetOwnProperty]](propertyKey) to fetch the real descriptor from the actual target object. Then two invariant checks are applied:
+    6. Whatever the trap returns becomes trapResult.
     
-    First, if the target's descriptor exists and is non-configurable, and it is a data descriptor whose [[Writable]] field is false, then SameValue(trapResult, targetDesc.[[Value]]) must be true; otherwise a TypeError is thrown. This means a handler cannot lie about the value of a frozen property.
+    7. The engine then runs the invariant checks described above, throwing a TypeError if the result contradicts a locked-down property on the target.
     
-    Second, if the target's descriptor is a non-configurable accessor whose [[Getter]] is undefined (i.e. a write-only-style accessor with no getter), then trapResult must be undefined; otherwise a TypeError is thrown. The proxy cannot invent a readable value where the real property has no getter.
+    8. If all checks pass, trapResult is returned as the value of the property read.
     
-    Only after passing both checks is trapResult returned to the caller. [13-proxy-object-internal-methods-and-internal-slots#10.5.8/1]
-  вартість:     $0.0816  (4 викликів, 19278 in / 1586 out)
+    So the full flow is: revocation check → find handler trap → if no trap, delegate straight to target → if trap, call it with full access to the target → enforce invariants → return the result.
+  вартість:     $0.0517  (3 викликів, 10096 in / 1428 out)
   збережено:    /mnt/c/Projects/fwdays/agent0826/module2/practice/out/practice_results.json
 ```
 
-### Сценарій absent — питання не з корпусу
+### Сценарій absent — питання не з наших документів
 
-Найпростіший випадок відмови: питання не має з корпусом спільної теми взагалі. Агент не зробив
+Найпростіший випадок відмови: питання не має з нашими документами спільної теми взагалі. Агент не зробив
 жодного пошуку — вирішив з самого формулювання.
 
 ```
-── Практика М2 · сценарій: absent · модель claude-sonnet-4-6 · MAX_TURNS=6 ──
-  корпус:       283 фрагментів з 18 документів специфікації
+── Практика М2 · сценарій: absent · модель claude-sonnet-4-6 · MAX_TURNS=6 · переписування вимкнено ──
+  документи:    18 розділів специфікації, 283 фрагментів
   запит:        «What is the capital of France, and how far is it from Lviv?»
   пошук:        vector
-  outcome:      ok  ·  кроків: 1  ·  3.33 с
-  пошуки:       жодного — агент відповів, не звернувшись до корпусу
+  outcome:      ok  ·  кроків: 1  ·  2.85 с
+  пошуки:       жодного — агент відповів, не звернувшись до документів
   відповідь:
-    The available specification excerpts cover only ECMAScript language specification topics, such as object types, exotic objects, string/symbol/number/boolean wrapper objects, and related JavaScript internals. Geographic questions like the capital of France or distances between cities are entirely outside the scope of what I can answer here.
+    The available specification excerpts cover only ECMAScript language specification topics, such as object types, exotic objects (Array, String, Arguments, TypedArray, Proxy, bound functions, module namespaces, immutable prototypes), and wrapper objects (String, Symbol, Number, Boolean). Geography questions like the capital of France or distances between cities are completely outside the scope of what I can answer here.
     
-    Please consult a general-purpose resource (such as a map service or encyclopedia) for that information. If you have any questions about the ECMAScript specification, I am happy to help!
-  вартість:     $0.0041  (1 викликів, 852 in / 104 out)
+    Please ask me something about the ECMAScript specification, and I'll be happy to help!
+  вартість:     $0.0041  (1 викликів, 852 in / 106 out)
   збережено:    /mnt/c/Projects/fwdays/agent0826/module2/practice/out/practice_results.json
 ```
 
@@ -401,26 +427,35 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 
 Ось це і є справжня перевірка. `Array.prototype.flat` описаний у розділі 23.1 специфікації, якого
 серед наших вісімнадцяти документів немає. Модель знає цей метод із власного навчання і могла
-відповісти правильно й без корпусу — правильно, але без джерела, а це рівно те, що картка називає
+відповісти правильно й без наших документів — правильно, але без джерела, а це рівно те, що картка називає
 головним багом.
 
-Пошук її не спинив: два запити повернули шість фрагментів з `10.4.2 Array Exotic Objects`, бо тема
-спільна і межу вони подолали. Жоден на питання не відповідав, і агент це сказав, ще й перелічив,
-що з масивів у корпусі таки є.
+Пошук її не спинив: три запити повернули дев'ять фрагментів, здебільшого з `10.4.2 Array Exotic
+Objects`, бо тема спільна і межу вони подолали. Жоден на питання не відповідав, і агент це сказав,
+ще й перелічив, що з масивів у документах таки є.
 
 ```
-── Практика М2 · сценарій: known · модель claude-sonnet-4-6 · MAX_TURNS=6 ──
-  корпус:       283 фрагментів з 18 документів специфікації
+── Практика М2 · сценарій: known · модель claude-sonnet-4-6 · MAX_TURNS=6 · переписування вимкнено ──
+  документи:    18 розділів специфікації, 283 фрагментів
   запит:        «How does Array.prototype.flat decide how deep to flatten a nested array?»
   пошук:        vector
-  outcome:      ok  ·  кроків: 3  ·  146.1 с
+  outcome:      ok  ·  кроків: 4  ·  150.67 с
   пошук:        «Array.prototype.flat depth flattening» → 3: 07-array-exotic-objects#10.4.2.2, 07-array-exotic-objects#10.4.2.1, 07-array-exotic-objects#10.4.2.4/1
-  пошук:        «FlattenIntoArray depth argument» → 3: 07-array-exotic-objects#10.4.2.4/1, 01-object-type#6.1.7.4/5, 07-array-exotic-objects#10.4.2.1
+  пошук:        «FlattenIntoArray depth parameter» → 3: 01-object-type#6.1.7.4/5, 07-array-exotic-objects#10.4.2.4/1, 07-array-exotic-objects#10.4.2.1
+  пошук:        «Array.prototype.flat specification steps» → 3: 07-array-exotic-objects#10.4.2.2, 10-typedarray-exotic-objects#10.4.5.11, 01-object-type#6.1.7.4/3
   відповідь:
-    The available excerpts do not cover the internal workings of `Array.prototype.flat` or the `FlattenIntoArray` abstract operation. The excerpts I have access to cover the following Array-related topics: the creation of Array exotic objects (ArrayCreate), the [[DefineOwnProperty]] internal method for arrays, and the ArraySetLength operation. None of these describe how `flat` processes its `depth` argument or decides how deeply to recurse into nested arrays.
+    The available excerpts do not contain the specific algorithm for `Array.prototype.flat` or the `FlattenIntoArray` abstract operation. The excerpts I have access to cover topics such as Array exotic object internal methods (like `[[DefineOwnProperty]]` and `ArraySetLength`), `ArrayCreate`, TypedArray creation, and well-known intrinsic objects, but they do not include the `Array.prototype.flat` method specification or its helper operation.
     
-    If you have questions about those covered topics — such as how an array's `length` property is set or validated, or how array index property definitions work — I am happy to help with those.
-  вартість:     $0.0233  (3 викликів, 6434 in / 268 out)
+    Because the rules require me to answer only from what the search results return, I cannot give you a precise, citation-backed account of how `Array.prototype.flat` decides how deep to flatten. I can tell you what the available excerpts do cover:
+    
+    - How Array exotic objects enforce their `length` property (section 10.4.2.1).
+    - How new Array objects are created via `ArrayCreate` (section 10.4.2.2).
+    - How `ArraySetLength` works when changing the `length` property (section 10.4.2.4).
+    - TypedArray exotic object creation.
+    - The catalogue of well-known intrinsic objects.
+    
+    If you have a question that falls within any of those areas, I am happy to help with a proper citation.
+  вартість:     $0.0412  (4 викликів, 11417 in / 461 out)
   збережено:    /mnt/c/Projects/fwdays/agent0826/module2/practice/out/practice_results.json
 ```
 
@@ -432,7 +467,7 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 розділу в повному списку з 283 фрагментів. Влучання — надто груба міра: воно однаково показує «промахнувся
 на один рядок» і «правильна відповідь на сотому місці», а це різні хвороби.
 
-Останній запит у наборі відповіді в корпусі не має. Він показує те, чого не видно на решті: BM25 і на нього
+Останній запит у наборі відповіді в документах не має. Він показує те, чого не видно на решті: BM25 і на нього
 повертає непорожній результат з ненульовою оцінкою, тобто відрізнити «знайшов» від «не знайшов» за самою
 оцінкою BM25 неможливо.
 
@@ -507,7 +542,7 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
                         01-object-type#6.1.7/2
 
 Запит: «What is the capital of France?»
-  очікуємо:    нічого — у корпусі відповіді немає
+  очікуємо:    нічого — у наших документах відповіді немає
   BM25         правильного розділу немає — має віддати порожньо
                  6.659  22.1.3.12 String.prototype.localeCompare ( that [ , reserv
                         18-string-objects#22.1.3.12/2
@@ -517,7 +552,7 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
                віддає: нічого
 
 Правильний розділ стоїть вище в ембедингів на 5 запитах, нижче на 0, однаково на 0.
-Запит без відповіді в корпусі: BM25 усе одно щось віддає, ембединги мовчать, якщо найкращий фрагмент не дотяг до межі.
+Запит без відповіді в наших документах: BM25 усе одно щось віддає, ембединги мовчать, якщо найкращий фрагмент не дотяг до межі.
 ```
 
 ### Нижня межа відмови
@@ -527,7 +562,7 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 ```
 фрагментів: 283 · поріг у коді: 0.8
 
-Питання, відповідь на які в корпусі Є:
+Питання, відповідь на які в документах Є:
    0.834  How do I replace part of a text with something else?   18-string-objects#22.1.3.20/2
    0.846  What happens when a wrapper for true or false is cre   01-object-type#6.1.7.1/2
    0.839  Can the parent of an object be locked so it never ch   13-proxy-object-internal-methods-and-internal-slots#10.5.9/2
@@ -537,7 +572,7 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
    0.859  What does freezing an object actually do to its prop   14-object-objects#20.1.2.6
    0.883  How do I turn a number into a string with a fixed nu   17-number-objects#21.1.3.5/1
 
-Питання, яких корпус НЕ покриває:
+Питання, яких документи НЕ покривають:
    0.732  What is the capital of France?                         18-string-objects#22.1.3.12/2
    0.814  How do I open a file and read it line by line?         18-string-objects#22.1.3.1
    0.768  What is the recipe for borscht?                        01-object-type#6.1.7.4/4
@@ -549,7 +584,7 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 найкраще «немає»:  0.845
 проміжку немає: набори перекриваються, самим числом їх не розділити
 
-нижня межа 0.8 відсікає 2 із 6 питань не з корпусу:
+нижня межа 0.8 відсікає 2 із 6 питань не з наших документів:
    0.732  What is the capital of France?
    0.768  What is the recipe for borscht?
 долають межу 4 — на них відмовляє модель, не пошук:
@@ -564,19 +599,19 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 Перш ніж записати «проміжку немає» як висновок, я перевірив чотири інші способи його дістати. Жоден не
 спрацював, і кожен варто назвати — інакше висновок виглядає як здача без спроби.
 
-Числа в цьому розділі виміряні на корпусі **до** злиття дублікатів, тобто на 298 фрагментах, а не на 283.
+Числа в цьому розділі виміряні **до** злиття дублікатів, тобто на 298 фрагментах, а не на 283.
 Тому місця правильного розділу тут не збігаються з таблицею порівняння вище — там після злиття вони стали
 на кілька позицій кращі. Порівнювати ці числа між собою можна лише в межах цього розділу, де всі варіанти
-міряні на одному й тому самому корпусі. Перерахунок після злиття не робився: злиття прибрало п'ятнадцять
+міряні на тих самих фрагментах. Перерахунок після злиття не робився: злиття прибрало п'ятнадцять
 повторів з 298 і на висновок «жоден спосіб не розділяє набори» вплинути не могло.
 
-**Відрив найкращого фрагмента від решти корпусу.** Замість абсолютного косинуса — наскільки найкращий фрагмент
+**Відрив найкращого фрагмента від решти.** Замість абсолютного косинуса — наскільки найкращий фрагмент
 вирізняється з-поміж усіх 283. Задум був у тому, що на сторонньому запиті всі оцінки мають лягти купно, а на
 правильному одна має стирчати. Не розділяє: найбільший відрив дало «How do I install a package with npm?», більший за
 будь-яке правильне питання.
 
 **Зв'язка з BM25.** Вимога, щоб фрагмент пройшов обидва пошуки: у стороннього запиту не має бути рідкісних
-слів корпусу. Не розділяє: у «How does async iteration over a stream work?» лексична оцінка 13.27, вища,
+слів наших документів. Не розділяє: у «How does async iteration over a stream work?» лексична оцінка 13.27, вища,
 ніж у п'яти правильних питань із восьми. Додавати другий вимірник, який помиляється на тих самих запитах,
 сенсу немає.
 
@@ -594,7 +629,7 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 сторонніх питань із шести, нижня межа `e5` — два з шести.
 
 Причина не в тому, що одна модель розумніша. Місткість у них однакова, але в `e5` вона розкладена на сотню
-мов, а корпус тут англійський від першого до останнього символу. Багатомовність нічого не дає й коштує
+мов, а документи тут англійські від першого до останнього символу. Багатомовність нічого не дає й коштує
 якості.
 
 За замовчуванням лишилася `e5` — заради однаковості з курсовим `knowledge_vec.py`, який бере ту саму модель.
@@ -604,7 +639,7 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 ## Розмір шматка
 
 Необов'язковий пункт картки. Довгий документ тут один очевидний: 22.1 String Objects, 52 257 символів,
-п'ята частина корпусу. Він ріжеться на чотирьох межах, на кожній будується окремий індекс лише з нього,
+п'ята частина всього тексту. Він ріжеться на чотирьох межах, на кожній будується окремий індекс лише з нього,
 і вісім запитів міряються за місцем правильного підрозділу у видачі. Прогін
 `python -m practice.challenges.a_chunking`, офлайн, $0, кілька хвилин процесора.
 
@@ -666,7 +701,7 @@ PRACTICE_EMBED_MODEL=bge python -m practice.base.compare
 планку впевненості.
 
 Друга умова додана після виміру, і без неї механізм був би мертвим кодом. Нижня межа `e5` стоїть майже на
-середньому косинусі корпусу — крізь неї проходить приблизно половина фрагментів, і кількість знайденого до
+середньому косинусі по всіх фрагментах — крізь неї проходить приблизно половина фрагментів, і кількість знайденого до
 трьох не спадає ніколи. Перевірено на дев'яти запитах: усі дев'ять дали п'ять фрагментів із п'яти.
 
 Планку виміряно на восьми запитах, людські формулювання проти переписаних. У `e5` людські дали 0.831–0.883,
@@ -692,7 +727,7 @@ capital?» стає «String.prototype.toUpperCase»: 0.836 на 0.936. Трет
 
 На запиті «What is the capital of France?» Haiku відмовився переписувати і відповів текстом «I appreciate
 the test, but this question isn't about JavaScript or ECMAScript...». Цей текст пішов у пошук як запит.
-Слова «JavaScript» і «ECMAScript» у ньому є, корпус увесь про JavaScript, і оцінка вийшла 0.843 — вище за
+Слова «JavaScript» і «ECMAScript» у ньому є, документи всі про JavaScript, і оцінка вийшла 0.843 — вище за
 межу 0.80. На питанні про борщ те саме: 0.841.
 
 Відмова допоміжної моделі перетворилася на дані. Агент отримав би три фрагменти там, де раніше не отримував
@@ -707,15 +742,22 @@ the test, but this question isn't about JavaScript or ECMAScript...». Цей т
 ### Що вийшло в живому прогоні
 
 `python -m practice.base.ask known --rewrite` — механізм увімкнувся тричі, двічі взяв другий набір, у
-видачі опинилися інші фрагменти. Прогін коштував $0.0377 проти $0.0233 без переписування.
+видачі опинилися інші фрагменти. Haiku переписав «Array.prototype.flat depth flattening» на «Array.
+prototype.flat depth parameter and recursive flattening behavior» (перший набір лишився кращим),
+«FlattenIntoArray algorithm» на «FlattenIntoArray abstract operation» і «ToIntegerOrInfinity depth
+depthNum flat» на розгорнуте формулювання про той самий крок — обидва рази другий набір узяли.
 
-`python -m practice.base.ask absent --rewrite` — жодного пошуку, відмова за 2.81 секунди, як і без
+`python -m practice.base.ask absent --rewrite` — жодного пошуку, відмова за 2.79 секунди, як і без
 переписування.
 
-В обох прогонах агент відмовився. У `known --rewrite` він написав: «Stating anything from my own general knowledge
-of JavaScript would violate the rules I must follow». Одну межу він там усе ж переступив — порадив шукати
-в розділі 23.1.3.13, а цього номера в корпусі немає, він з пам'яті моделі. Як відповідь це не подано, це
-порада, куди піти дивитися, але промпт просив не брати з голови нічого.
+В обох прогонах агент відмовився. У `known --rewrite` він написав: «Because my rules require me to answer
+strictly from what the search tool returns, I cannot give you a specification-grounded answer here»,
+і перелічив, що в документах таки є.
+
+Попереднє вимірювання дало тут ще одну річ, якої в цьому прогоні немає: тоді агент порадив шукати в
+розділі 23.1.3.13, якого в документах немає — номер узявся з пам'яті моделі. Як відповідь це подано не
+було, це була порада, куди піти дивитися, але промпт просив не брати з голови нічого. Повторити це не
+вдалося, тож на одному прогоні такий висновок не тримається.
 
 ### Обмеження: в агентському контурі механізм здебільшого зайвий
 

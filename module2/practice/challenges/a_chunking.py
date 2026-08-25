@@ -3,7 +3,7 @@
 
 Необов'язковий пункт картки: «взяти один довгий документ і погратись із розміром
 шматків». Довгий документ тут один очевидний — 22.1 String Objects, 52 257
-символів, п'ята частина всього корпусу.
+символів, п'ята частина всього тексту.
 
 ЩО САМЕ МІРЯЄТЬСЯ
 
@@ -68,7 +68,7 @@ def _rank(passages, matrix, query: str, section: str):
 def main() -> int:
     doc = next((d for d in load_documents() if d.doc_id == DOC_ID), None)
     if doc is None:
-        raise SystemExit(f"У корпусі немає документа {DOC_ID}.")
+        raise SystemExit(f"Серед документів немає {DOC_ID}.")
 
     print(f"документ: {doc.title} · {len(doc.text)} символів · модель {MODEL_NAME}")
     print(f"запитів: {len(QUERIES)} · межі: {', '.join(str(c) for c in CEILINGS)}\n")
