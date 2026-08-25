@@ -1,0 +1,189 @@
+"""
+ОСНОВА · безкоштовні перевірки. Жодного звернення до моделей Anthropic.
+
+Це verification-список дизайну, який можна ганяти скільки завгодно: розкладка
+родин, підмножини фрагментів, схеми і права спеціалістів, реєстрація в IMPL,
+детерміновані тригери передачі людині, звірка посилань. Кожна перевірка друкує
+рядок ok/FAIL; будь-який FAIL завершує процес із ненульовим кодом.
+
+    python -m practice.base.smoke           # $0, секунди
+    python -m practice.base.smoke --warm    # $0, плюс збірка векторних індексів
+                                            # (перший раз — завантаження моделі
+                                            # ембедингів і хвилини лічби на CPU)
+
+Прапорець --warm вартий окремого запуску перед compare: індекси всіх підмножин
+зберуться в кеш заздалегідь, і вимір не платитиме за них часом.
+"""
+
+import sys
+
+FAILED = []
+
+
+def check(name: str, ok: bool, detail: str = "") -> None:
+    print(f"  {'ok  ' if ok else 'FAIL'}  {name}" + (f" — {detail}" if detail else ""))
+    if not ok:
+        FAILED.append(name)
+
+
+def main(argv: list[str]) -> int:
+    from practice.base import critic, team
+
+    # 1. Родини покривають усі вісімнадцять документів, кожен рівно один раз.
+    numbers = sorted(n for fam in team.FAMILIES.values() for n in fam)
+    check("родини покривають документи 01–18 без перетинів",
+          numbers == list(range(1, 19)))
+
+    # 2. Підмножини фрагментів складаються назад у повний набір.
+    full = team.all_passages()
+    parts = [team.passages_for(f) for f in team.FAMILIES]
+    pids = [p.pid for sub in parts for p in sub]
+    check("підмножини розбивають повний набір фрагментів",
+          sorted(pids) == sorted(p.pid for p in full),
+          f"{' + '.join(str(len(s)) for s in parts)} = {len(full)}")
+
+    # 3. Імена інструментів унікальні і не перетинаються з курсовими.
+    names = list(team.PRACTICE_IMPL)
+    check("імена інструментів практики унікальні", len(names) == len(set(names)))
+    check("жодне ім'я не збігається з курсовим IMPL",
+          not set(names) & team._COURSE_TOOL_NAMES)
+    team.register()
+    team.register()
+    check("register() ідемпотентна", True)
+
+    # 4. Права: у кожного маршруту свої схеми, fetch_spec без --live немає ніде.
+    for fam in team.FAMILIES:
+        tools = team.tools_for_route(fam)
+        check(f"{fam}: лише власний пошук",
+              [t["name"] for t in tools] == [team.TOOL_NAMES[fam]])
+    gen = [t["name"] for t in team.tools_for_route(team.GENERAL)]
+    check("GENERAL: субагент і запит на передачу, БЕЗ прямого пошуку",
+          gen == [team.RESEARCH_TOOL, team.REQUEST_TOOL])
+    all_schemas = [t["name"] for f in list(team.FAMILIES) + [team.GENERAL]
+                   for t in team.tools_for_route(f)]
+    check("fetch_spec відсутній у схемах без --live",
+          "fetch_spec" not in all_schemas)
+
+    # 5. Звірка посилань: вигадане джерело, підсумок субагента, живий якір.
+    trace = [
+        {"tool": "search_wrapper_docs",
+         "output": {"found": 1, "passages": [{"id": "18-string-objects#22.1.3.19"}]}},
+        {"tool": "research_topic",
+         "output": {"summary": "Covered in [13-proxy-object-internal-methods-"
+                               "and-internal-slots#10.5.8].", "found_anything": True}},
+        {"tool": "fetch_spec",
+         "output": {"anchor": "sec-array-prototype-flat", "text": "..."}},
+    ]
+    good = critic.check_citations(
+        "See [18-string-objects#22.1.3.19] and "
+        "[13-proxy-object-internal-methods-and-internal-slots#10.5.8] "
+        "and [live:sec-array-prototype-flat].", trace)
+    check("звірка приймає ідентифікатори з пошуку, субагента і живого якоря",
+          not good["fabricated"] and len(good["cited"]) == 3)
+    bad = critic.check_citations("As stated in [23-array-objects#23.1.3.13].", trace)
+    check("звірка ловить вигадане джерело",
+          bad["fabricated"] == ["23-array-objects#23.1.3.13"])
+    refusal = critic.check_citations("The excerpts do not cover this.", trace)
+    check("відмова без цитат не вважається вигадкою, але позначається",
+          not refusal["fabricated"] and refusal["uncited"])
+
+    # 6. Заглушка передачі людині: лічильник, не hash.
+    before = len(team.HANDOFF_LOG)
+    t1 = team.handoff_to_human("q", "r")["ticket"]
+    t2 = team.handoff_to_human("q", "r")["ticket"]
+    check("заявки HITL нумеруються лічильником",
+          t1 == f"HITL-{before + 1:05d}" and t2 == f"HITL-{before + 2:05d}")
+
+    # 7. Пауза перед незворотною дією: запит лягає в чергу, передача стається
+    # лише на підтвердженні, історія запитів не видаляється.
+    import pathlib as _pl
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        q = _pl.Path(tmp) / "pending.json"
+        log_before = len(team.HANDOFF_LOG)
+        r = team.request_handoff("тестове питання", "тестова причина", path=q)
+        check("request_handoff ставить запит у чергу і НЕ передає",
+              r["pending"] and r["request_id"] == "REQ-00001"
+              and len(team.HANDOFF_LOG) == log_before)
+        entry = team.confirm_handoff(path=q)
+        check("confirm_handoff передає і зберігає історію",
+              entry["status"] == "confirmed" and entry["ticket"].startswith("HITL-")
+              and len(team.HANDOFF_LOG) == log_before + 1)
+        check("повторне підтвердження без запитів відмовляє",
+              team.confirm_handoff(path=q) is None)
+
+    # 8. Детерміновані тригери передачі людині (потрібен config, тобто .env).
+    try:
+        from practice.base import system
+    except SystemExit as e:
+        check("тригери decide() перевірено", False, f"config недоступний: {e}")
+    else:
+        cases = [
+            ({"outcome": "api_error"}, "api_error"),
+            ({"outcome": "turns_exhausted"}, "turns_exhausted"),
+            ({"outcome": "ok", "trace": [{"failed": True}]}, "tool_error"),
+            ({"outcome": "ok", "trace": [{}],
+              "citations": {"fabricated": ["x#1"]}}, "fabricated"),
+            ({"outcome": "ok", "trace": [{}], "citations": {},
+              "critic": {"ok": False}}, "critic_failed"),
+            ({"outcome": "ok", "routed_to": team.GENERAL, "citations": {},
+              "trace": [{"tool": team.RESEARCH_TOOL,
+                         "output": {"found_anything": False}}]}, "research_empty"),
+            ({"outcome": "ok", "routed_to": "OBJECT", "citations": {},
+              "trace": [{"tool": "search_object_docs",
+                         "output": {"found": 2}}]}, None),
+        ]
+        ok = all(system.decide(dict(r)) == want for r, want in cases)
+        check("тригери decide() дають очікувані причини", ok)
+        check("мова повідомлення про передачу йде за мовою запиту",
+              system._ukrainian("Як працює replace?")
+              and not system._ukrainian("How does replace work?"))
+        for route in team.ROUTES:
+            check(f"роутер-промпт називає {route}", route in system.ROUTER_PROMPT)
+
+    # 9. live_fetch: перевірка адрес і вирізання підрозділу — офлайн, без мережі.
+    from practice.challenges import live_fetch as lf
+    bad = [
+        "http://tc39.es/ecma262/multipage/x.html#sec-a",        # не https
+        "https://evil.example/ecma262/multipage/x.html#sec-a",  # чужий host
+        "https://tc39.es/ecma262/#sec-a",                       # односторінкова
+        "https://tc39.es/ecma262/multipage/x.html",             # без якоря
+        "https://tc39.es/other/multipage/x.html#sec-a",         # чужий шлях
+    ]
+    check("live_fetch відхиляє недозволені адреси",
+          all("error" in lf._validate(u) for u in bad))
+    ok_url = lf._validate("https://tc39.es/ecma262/multipage/"
+                          "indexed-collections.html#sec-array.prototype.flat")
+    check("live_fetch розбирає дозволену адресу",
+          ok_url == ("https://tc39.es/ecma262/multipage/indexed-collections.html",
+                     "sec-array.prototype.flat"))
+    # Сайт віддає атрибути без лапок — вирізання мусить брати обидві форми.
+    page_q = '<emu-clause id="sec-t"><p>quoted body</p></emu-clause>'
+    page_u = '<emu-clause id=sec-t type="x"><p>unquoted body</p></emu-clause>'
+    check("вирізання підрозділу бере id у лапках і без",
+          "quoted body" in lf._extract_section(page_q, "sec-t")
+          and "unquoted body" in lf._extract_section(page_u, "sec-t")
+          and lf._extract_section(page_u, "sec-missing") is None)
+
+    # 10. За бажанням — прогрів індексів (модель ембедингів, хвилини на CPU).
+    if "--warm" in sys.argv:
+        print("  прогрів векторних індексів...")
+        paths = set()
+        for fam in list(team.FAMILIES) + [team.GENERAL]:
+            idx = team.index_for(fam)
+            paths.add(idx.cache_path)
+            src = "з кеша" if idx.from_cache else "порахований"
+            print(f"    {fam:8} {len(idx.passages):3} фрагментів, {src}: "
+                  f"{idx.cache_path.name}")
+        check("у кожної підмножини свій файл кеша", len(paths) == 4)
+
+    print()
+    if FAILED:
+        print(f"ПРОВАЛЕНО: {len(FAILED)} — " + "; ".join(FAILED))
+        return 1
+    print("Усі перевірки пройдено.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
