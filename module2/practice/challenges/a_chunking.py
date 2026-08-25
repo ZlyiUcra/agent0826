@@ -96,7 +96,7 @@ def main() -> int:
 
     print()
     print(f"{'фрагментів':<12}" + "".join(f"{results[c][1]:>8}" for c in CEILINGS))
-    for label, keep in (("у топ-1", 1), ("у топ-3", 3)):
+    for label, keep in (("перший рядок", 1), ("перша трійка", 3)):
         row = "".join(f"{sum(1 for r in results[c][0] if r and r <= keep):>8}"
                       for c in CEILINGS)
         print(f"{label:<12}{row}")

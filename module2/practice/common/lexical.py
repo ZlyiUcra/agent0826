@@ -68,7 +68,7 @@ class LexicalIndex:
         self.idf = {w: math.log(1 + (n - c + 0.5) / (c + 0.5)) for w, c in df.items()}
 
     def scores(self, query: str, k: int = 3) -> list[tuple[float, Passage]]:
-        """Топ-k фрагментів з оцінками, від більшої до меншої."""
+        """Перші k фрагментів з оцінками, від більшої до меншої."""
         terms = tokenize(query)
         out = []
         for i, counts in enumerate(self.tf):

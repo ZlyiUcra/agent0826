@@ -55,7 +55,7 @@ stream work?» (0.845) і «What is the difference between let and var?» (0.818
 Intrinsic Objects: це суцільна таблиця імен від %Array% до %WeakSet%, і вона
 схожа на будь-яке питання про мову.
 
-Перевірено ще два способи, обидва не розділяють. Відрив топ-1 від решти корпусу:
+Перевірено ще два способи, обидва не розділяють. Відрив найкращого фрагмента від решти корпусу:
 найбільший відрив дало «How do I install a package with npm?», більший за
 будь-яке правильне питання. Зв'язка з BM25: у того самого «async iteration»
 лексична оцінка 13.27, вища, ніж у п'яти правильних питань із восьми.
@@ -102,7 +102,7 @@ if MODEL_KEY not in MODELS:
     raise SystemExit(f"Невідома модель '{MODEL_KEY}'. Доступні: {', '.join(MODELS)}")
 MODEL_NAME, _QUERY_PREFIX, _PASSAGE_PREFIX = MODELS[MODEL_KEY]
 
-# Підлога схожості для кожної моделі окремо: косинуси в них живуть у різних
+# Нижня межа схожості для кожної моделі окремо: косинуси в них живуть у різних
 # діапазонах, тож одне число на всіх не годиться. Виміряно base/threshold.py.
 THRESHOLDS = {"e5": 0.80, "bge": 0.68}
 
@@ -195,11 +195,11 @@ class VectorIndex:
             np.save(self.cache_path, self.matrix)
 
     def scores(self, query: str, k: int = 3) -> list[tuple[float, Passage]]:
-        """Топ-k за косинусом, БЕЗ відсікання за порогом. Для налаштування порога."""
+        """Перші k за косинусом, БЕЗ відсікання за межею. Щоб її налаштувати."""
         sims = self.matrix @ embed([query], kind="query")[0]
         order = sims.argsort()[::-1][:k]
         return [(float(sims[i]), self.passages[i]) for i in order]
 
     def retrieve(self, query: str, k: int = 3) -> list[Passage]:
-        """Топ-k з відсіканням за порогом. Порожньо означає «в корпусі немає»."""
+        """Перші k з відсіканням за нижньою межею. Порожньо означає «в корпусі немає»."""
         return [p for s, p in self.scores(query, k) if s >= THRESHOLD]
