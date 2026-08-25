@@ -82,7 +82,7 @@ def main(argv: list[str]) -> int:
     vec = VectorIndex()
     src = "з кеша" if vec.from_cache else "порахований щойно"
     total = len(lex.passages)
-    print(f"фрагментів: {total} · модель {MODEL_NAME} · підлога {THRESHOLD}")
+    print(f"фрагментів: {total} · модель {MODEL_NAME} · нижня межа {THRESHOLD}")
     print(f"векторний індекс {src} ({vec.cache_path.name})\n")
 
     better = same = worse = 0
@@ -108,7 +108,7 @@ def main(argv: list[str]) -> int:
     print(f"Правильний розділ стоїть вище в ембедингів на {better} запитах, "
           f"нижче на {worse}, однаково на {same}.")
     print("Запит без відповіді в корпусі: BM25 усе одно щось віддає, "
-          "ембединги мовчать, якщо топ-1 не дотяг до підлоги.")
+          "ембединги мовчать, якщо топ-1 не дотяг до межі.")
     return 0
 
 
