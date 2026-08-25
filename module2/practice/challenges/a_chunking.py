@@ -7,7 +7,7 @@
 
 ЩО САМЕ МІРЯЄТЬСЯ
 
-Документ ріжеться на чотирьох стелях розміру, і на кожній будується окремий
+Документ ріжеться на чотирьох межах розміру, і на кожній будується окремий
 індекс лише з цього документа. Далі вісім запитів, відповідь на кожен лежить у
 відомому підрозділі, і для кожного записується МІСЦЕ цього підрозділу у видачі.
 
@@ -27,7 +27,7 @@
 методи, і вектор виходить усереднений.
 
 Дослід офлайн, до моделі Anthropic не звертається, грошей не коштує. Але кожна
-стеля — це окремий перерахунок ембедингів, тож прогін триває кілька хвилин і
+межа — це окремий перерахунок ембедингів, тож прогін триває кілька хвилин і
 кеш не використовує: індекси тут тимчасові й на диск не лягають.
 
     python -m practice.challenges.a_chunking
@@ -71,13 +71,13 @@ def main() -> int:
         raise SystemExit(f"У корпусі немає документа {DOC_ID}.")
 
     print(f"документ: {doc.title} · {len(doc.text)} символів · модель {MODEL_NAME}")
-    print(f"запитів: {len(QUERIES)} · стелі: {', '.join(str(c) for c in CEILINGS)}\n")
+    print(f"запитів: {len(QUERIES)} · межі: {', '.join(str(c) for c in CEILINGS)}\n")
 
     results = {}
     for ceiling in CEILINGS:
         passages = split_document(doc, ceiling)
         lengths = [len(p.text) for p in passages]
-        print(f"стеля {ceiling}: рахую {len(passages)} фрагментів "
+        print(f"межа {ceiling}: рахую {len(passages)} фрагментів "
               f"(найдовший {max(lengths)}, у середньому {sum(lengths) // len(lengths)})",
               flush=True)
         matrix = embed([f"{p.heading}\n{p.text}" for p in passages], kind="passage")
