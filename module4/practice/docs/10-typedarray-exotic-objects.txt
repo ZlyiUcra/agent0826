@@ -1,0 +1,265 @@
+# 10.4.5 TypedArray Exotic Objects
+# джерело: https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-typedarray-exotic-objects
+# отримано: 2026-08-25
+
+10.4.5 TypedArray Exotic Objects
+
+A TypedArray is an exotic object that performs special handling of property keys that are canonical numeric strings , using the subset that are in-bounds integer indices to index elements of uniform type and enforcing the invariant that the remainder are absent without incurring prototype chain traversal.
+
+Note
+Because ToString ( n ) for any Number n is a canonical numeric string , an implementation may treat Numbers as property keys for TypedArrays without actually performing the string conversion.
+
+TypedArrays have the same internal slots as ordinary objects and additionally [[ViewedArrayBuffer]] , [[TypedArrayName]] , [[ContentType]] , [[ByteLength]] , [[ByteOffset]] , and [[ArrayLength]] internal slots.
+
+An object is a TypedArray if its [[PreventExtensions]] , [[GetOwnProperty]] , [[HasProperty]] , [[DefineOwnProperty]] , [[Get]] , [[Set]] , [[Delete]] , and [[OwnPropertyKeys]] , internal methods use the definitions in this section, and its other essential internal methods use the definitions found in 10.1 . These methods are installed by TypedArrayCreate .
+
+10.4.5.1 [[PreventExtensions]] ( )
+
+The [[PreventExtensions]] internal method of a TypedArray obj takes no arguments and returns a normal completion containing a Boolean. It performs the following steps when called:
+
+- NOTE : The extensibility-related invariants specified in 6.1.7.3 do not allow this method to return true when obj can gain (or lose and then regain) properties, which might occur for properties with integer index names when its underlying buffer is resized.
+- If IsTypedArrayFixedLength ( obj ) is false , return false .
+- Return OrdinaryPreventExtensions ( obj ).
+
+10.4.5.2 [[GetOwnProperty]] ( propertyKey )
+
+The [[GetOwnProperty]] internal method of a TypedArray obj takes argument propertyKey (a property key ) and returns a normal completion containing either a Property Descriptor or undefined . It performs the following steps when called:
+
+- If propertyKey is a String , then - Let numericIndex be CanonicalNumericIndexString ( propertyKey ).
+- If numericIndex is not undefined , then - Let value be TypedArrayGetElement ( obj , numericIndex ).
+- If value is undefined , return undefined .
+- Return the PropertyDescriptor { [[Value]] : value , [[Writable]] : true , [[Enumerable]] : true , [[Configurable]] : true }.
+
+- Return OrdinaryGetOwnProperty ( obj , propertyKey ).
+
+10.4.5.3 [[HasProperty]] ( propertyKey )
+
+The [[HasProperty]] internal method of a TypedArray obj takes argument propertyKey (a property key ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- If propertyKey is a String , then - Let numericIndex be CanonicalNumericIndexString ( propertyKey ).
+- If numericIndex is not undefined , return IsValidIntegerIndex ( obj , numericIndex ).
+
+- Return ? OrdinaryHasProperty ( obj , propertyKey ).
+
+10.4.5.4 [[DefineOwnProperty]] ( propertyKey , propertyDesc )
+
+The [[DefineOwnProperty]] internal method of a TypedArray obj takes arguments propertyKey (a property key ) and propertyDesc (a Property Descriptor ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- If propertyKey is a String , then - Let numericIndex be CanonicalNumericIndexString ( propertyKey ).
+- If numericIndex is not undefined , then - If IsValidIntegerIndex ( obj , numericIndex ) is false , return false .
+- If propertyDesc has a [[Configurable]] field and propertyDesc . [[Configurable]] is false , return false .
+- If propertyDesc has an [[Enumerable]] field and propertyDesc . [[Enumerable]] is false , return false .
+- If IsAccessorDescriptor ( propertyDesc ) is true , return false .
+- If propertyDesc has a [[Writable]] field and propertyDesc . [[Writable]] is false , return false .
+- If propertyDesc has a [[Value]] field, perform ? TypedArraySetElement ( obj , numericIndex , propertyDesc . [[Value]] ).
+- Return true .
+
+- Return ! OrdinaryDefineOwnProperty ( obj , propertyKey , propertyDesc ).
+
+10.4.5.5 [[Get]] ( propertyKey , receiver )
+
+The [[Get]] internal method of a TypedArray obj takes arguments propertyKey (a property key ) and receiver (an ECMAScript language value ) and returns either a normal completion containing an ECMAScript language value or a throw completion . It performs the following steps when called:
+
+- If propertyKey is a String , then - Let numericIndex be CanonicalNumericIndexString ( propertyKey ).
+- If numericIndex is not undefined , then - Return TypedArrayGetElement ( obj , numericIndex ).
+
+- Return ? OrdinaryGet ( obj , propertyKey , receiver ).
+
+10.4.5.6 [[Set]] ( propertyKey , value , receiver )
+
+The [[Set]] internal method of a TypedArray obj takes arguments propertyKey (a property key ), value (an ECMAScript language value ), and receiver (an ECMAScript language value ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- If propertyKey is a String , then - Let numericIndex be CanonicalNumericIndexString ( propertyKey ).
+- If numericIndex is not undefined , then - If SameValue ( obj , receiver ) is true , then - Perform ? TypedArraySetElement ( obj , numericIndex , value ).
+- Return true .
+
+- If IsValidIntegerIndex ( obj , numericIndex ) is false , return true .
+
+- Return ? OrdinarySet ( obj , propertyKey , value , receiver ).
+
+10.4.5.7 [[Delete]] ( propertyKey )
+
+The [[Delete]] internal method of a TypedArray obj takes argument propertyKey (a property key ) and returns a normal completion containing a Boolean. It performs the following steps when called:
+
+- If propertyKey is a String , then - Let numericIndex be CanonicalNumericIndexString ( propertyKey ).
+- If numericIndex is not undefined , then - If IsValidIntegerIndex ( obj , numericIndex ) is false , return true .
+- Return false .
+
+- Return ! OrdinaryDelete ( obj , propertyKey ).
+
+10.4.5.8 [[OwnPropertyKeys]] ( )
+
+The [[OwnPropertyKeys]] internal method of a TypedArray obj takes no arguments and returns a normal completion containing a List of property keys . It performs the following steps when called:
+
+- Let taRecord be MakeTypedArrayWithBufferWitnessRecord ( obj , seq-cst ).
+- Let keys be a new empty List .
+- If IsTypedArrayOutOfBounds ( taRecord ) is false , then - Let length be TypedArrayLength ( taRecord ).
+- For each integer i such that 0 ≤ i < length , in ascending order, do - Append ! ToString ( 𝔽 ( i )) to keys .
+
+- For each own property key propertyKey of obj such that propertyKey is a String and propertyKey is not an integer index , in ascending chronological order of property creation, do - Append propertyKey to keys .
+
+- For each own property key propertyKey of obj such that propertyKey is a Symbol , in ascending chronological order of property creation, do - Append propertyKey to keys .
+
+- Return keys .
+
+10.4.5.9 TypedArray With Buffer Witness Records
+
+An TypedArray With Buffer Witness Record is a Record used to encapsulate a TypedArray along with a cached byte length of the viewed buffer. It is used to help ensure there is a single ReadSharedMemory event of the byte length data block when the viewed buffer is a growable SharedArrayBuffer .
+
+TypedArray With Buffer Witness Records have the fields listed in Table 28 .
+
+Table 28: TypedArray With Buffer Witness Record Fields
+
+Field Name
+
+Value
+
+Meaning
+
+[[Object]]
+
+a TypedArray
+
+The TypedArray whose buffer's byte length is loaded.
+
+[[CachedBufferByteLength]]
+
+a non-negative integer or detached
+
+The byte length of the object's [[ViewedArrayBuffer]] when the Record was created.
+
+10.4.5.10 MakeTypedArrayWithBufferWitnessRecord ( obj , order )
+
+The abstract operation MakeTypedArrayWithBufferWitnessRecord takes arguments obj (a TypedArray ) and order ( seq-cst or unordered ) and returns a TypedArray With Buffer Witness Record . It performs the following steps when called:
+
+- Let buffer be obj . [[ViewedArrayBuffer]] .
+- If IsDetachedBuffer ( buffer ) is true , then - Let byteLength be detached .
+
+- Else, - Let byteLength be ArrayBufferByteLength ( buffer , order ).
+
+- Return the TypedArray With Buffer Witness Record { [[Object]] : obj , [[CachedBufferByteLength]] : byteLength }.
+
+10.4.5.11 TypedArrayCreate ( proto )
+
+The abstract operation TypedArrayCreate takes argument proto (an Object) and returns a TypedArray . It is used to specify the creation of new TypedArrays . It performs the following steps when called:
+
+- Let internalSlotsList be « [[Prototype]] , [[Extensible]] , [[ViewedArrayBuffer]] , [[TypedArrayName]] , [[ContentType]] , [[ByteLength]] , [[ByteOffset]] , [[ArrayLength]] ».
+- Let ta be MakeBasicObject ( internalSlotsList ).
+- Set ta . [[PreventExtensions]] as specified in 10.4.5.1 .
+- Set ta . [[GetOwnProperty]] as specified in 10.4.5.2 .
+- Set ta . [[HasProperty]] as specified in 10.4.5.3 .
+- Set ta . [[DefineOwnProperty]] as specified in 10.4.5.4 .
+- Set ta . [[Get]] as specified in 10.4.5.5 .
+- Set ta . [[Set]] as specified in 10.4.5.6 .
+- Set ta . [[Delete]] as specified in 10.4.5.7 .
+- Set ta . [[OwnPropertyKeys]] as specified in 10.4.5.8 .
+- Set ta . [[Prototype]] to proto .
+- Return ta .
+
+10.4.5.12 TypedArrayByteLength ( taRecord )
+
+The abstract operation TypedArrayByteLength takes argument taRecord (a TypedArray With Buffer Witness Record ) and returns a non-negative integer . It performs the following steps when called:
+
+- Assert : IsTypedArrayOutOfBounds ( taRecord ) is false .
+- Let obj be taRecord . [[Object]] .
+- If obj . [[ByteLength]] is not auto , return obj . [[ByteLength]] .
+- Let length be TypedArrayLength ( taRecord ).
+- Let elementSize be TypedArrayElementSize ( obj ).
+- NOTE : The returned byte length is always an integer multiple of elementSize , even when the underlying buffer has been resized to a non- integer multiple.
+- Return length × elementSize .
+
+10.4.5.13 TypedArrayLength ( taRecord )
+
+The abstract operation TypedArrayLength takes argument taRecord (a TypedArray With Buffer Witness Record ) and returns a non-negative integer . It performs the following steps when called:
+
+- Assert : IsTypedArrayOutOfBounds ( taRecord ) is false .
+- Let obj be taRecord . [[Object]] .
+- If obj . [[ArrayLength]] is not auto , return obj . [[ArrayLength]] .
+- Assert : IsFixedLengthArrayBuffer ( obj . [[ViewedArrayBuffer]] ) is false .
+- Let byteOffset be obj . [[ByteOffset]] .
+- Let elementSize be TypedArrayElementSize ( obj ).
+- Let byteLength be taRecord . [[CachedBufferByteLength]] .
+- Assert : byteLength is not detached .
+- Return floor (( byteLength - byteOffset ) / elementSize ).
+
+10.4.5.14 IsTypedArrayOutOfBounds ( taRecord )
+
+The abstract operation IsTypedArrayOutOfBounds takes argument taRecord (a TypedArray With Buffer Witness Record ) and returns a Boolean. It checks if any of the object's numeric properties reference a value at an index not contained within the underlying buffer's bounds. It performs the following steps when called:
+
+- Let obj be taRecord . [[Object]] .
+- Let bufferByteLength be taRecord . [[CachedBufferByteLength]] .
+- If IsDetachedBuffer ( obj . [[ViewedArrayBuffer]] ) is true , then - Assert : bufferByteLength is detached .
+- Return true .
+
+- Assert : bufferByteLength is a non-negative integer .
+- Let byteOffsetStart be obj . [[ByteOffset]] .
+- If obj . [[ArrayLength]] is auto , then - Let byteOffsetEnd be bufferByteLength .
+
+- Else, - Let elementSize be TypedArrayElementSize ( obj ).
+- Let arrayByteLength be obj . [[ArrayLength]] × elementSize .
+- Let byteOffsetEnd be byteOffsetStart + arrayByteLength .
+
+- NOTE : A 0-length TypedArray whose [[ByteOffset]] is bufferByteLength is not considered out-of-bounds.
+- If byteOffsetStart > bufferByteLength or byteOffsetEnd > bufferByteLength , return true .
+- Return false .
+
+10.4.5.15 IsTypedArrayFixedLength ( obj )
+
+The abstract operation IsTypedArrayFixedLength takes argument obj (a TypedArray ) and returns a Boolean. It performs the following steps when called:
+
+- If obj . [[ArrayLength]] is auto , return false .
+- Let buffer be obj . [[ViewedArrayBuffer]] .
+- If IsFixedLengthArrayBuffer ( buffer ) is false and IsSharedArrayBuffer ( buffer ) is false , return false .
+- Return true .
+
+10.4.5.16 IsValidIntegerIndex ( obj , index )
+
+The abstract operation IsValidIntegerIndex takes arguments obj (a TypedArray ) and index (a Number) and returns a Boolean. It performs the following steps when called:
+
+- If IsDetachedBuffer ( obj . [[ViewedArrayBuffer]] ) is true , return false .
+- If index is not an integral Number , return false .
+- If index is -0 𝔽 or index < -0 𝔽 , return false .
+- Let taRecord be MakeTypedArrayWithBufferWitnessRecord ( obj , unordered ).
+- NOTE : Bounds checking is not a synchronizing operation when obj 's backing buffer is a growable SharedArrayBuffer .
+- If IsTypedArrayOutOfBounds ( taRecord ) is true , return false .
+- Let length be TypedArrayLength ( taRecord ).
+- If ℝ ( index ) ≥ length , return false .
+- Return true .
+
+10.4.5.17 TypedArrayGetElement ( obj , index )
+
+The abstract operation TypedArrayGetElement takes arguments obj (a TypedArray ) and index (a Number) and returns a Number, a BigInt, or undefined . It performs the following steps when called:
+
+- If IsValidIntegerIndex ( obj , index ) is false , return undefined .
+- Let offset be obj . [[ByteOffset]] .
+- Let elementSize be TypedArrayElementSize ( obj ).
+- Let byteIndexInBuffer be ( ℝ ( index ) × elementSize ) + offset .
+- Let elementType be TypedArrayElementType ( obj ).
+- Return GetValueFromBuffer ( obj . [[ViewedArrayBuffer]] , byteIndexInBuffer , elementType , true , unordered ).
+
+10.4.5.18 TypedArraySetElement ( obj , index , value )
+
+The abstract operation TypedArraySetElement takes arguments obj (a TypedArray ), index (a Number), and value (an ECMAScript language value ) and returns either a normal completion containing unused or a throw completion . It performs the following steps when called:
+
+- If obj . [[ContentType]] is bigint , let number be ? ToBigInt ( value ).
+- Else, let number be ? ToNumber ( value ).
+- If IsValidIntegerIndex ( obj , index ) is true , then - Let offset be obj . [[ByteOffset]] .
+- Let elementSize be TypedArrayElementSize ( obj ).
+- Let byteIndexInBuffer be ( ℝ ( index ) × elementSize ) + offset .
+- Let elementType be TypedArrayElementType ( obj ).
+- Perform SetValueInBuffer ( obj . [[ViewedArrayBuffer]] , byteIndexInBuffer , elementType , number , true , unordered ).
+
+- Return unused .
+
+Note
+This operation always appears to succeed, but it has no effect when attempting to write past the end of a TypedArray or to a TypedArray which is backed by a detached ArrayBuffer.
+
+10.4.5.19 IsArrayBufferViewOutOfBounds ( obj )
+
+The abstract operation IsArrayBufferViewOutOfBounds takes argument obj (a TypedArray or a DataView) and returns a Boolean. It checks if either any of a TypedArray 's numeric properties or a DataView object's methods can reference a value at an index not contained within the underlying data block's bounds. This abstract operation exists as a convenience for upstream specifications. It performs the following steps when called:
+
+- If obj has a [[DataView]] internal slot, then - Let viewRecord be MakeDataViewWithBufferWitnessRecord ( obj , seq-cst ).
+- Return IsViewOutOfBounds ( viewRecord ).
+
+- Let taRecord be MakeTypedArrayWithBufferWitnessRecord ( obj , seq-cst ).
+- Return IsTypedArrayOutOfBounds ( taRecord ).

@@ -1,0 +1,149 @@
+# 10.4.6 Module Namespace Exotic Objects
+# джерело: https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-module-namespace-exotic-objects
+# отримано: 2026-08-25
+
+10.4.6 Module Namespace Exotic Objects
+
+A module namespace exotic object is an exotic object that exposes the bindings exported from an ECMAScript Module (See 16.2.3 ). There is a one-to-one correspondence between the String-keyed own properties of a module namespace exotic object and the binding names exported by the Module . The exported bindings include any bindings that are indirectly exported using export * export items. Each String-valued own property key is the StringValue of the corresponding exported binding name. These are the only String-keyed properties of a module namespace exotic object . Each such property has the attributes { [[Writable]] : true , [[Enumerable]] : true , [[Configurable]] : false }. Module namespace exotic objects are not extensible.
+
+An object is a module namespace exotic object if its [[GetPrototypeOf]] , [[SetPrototypeOf]] , [[IsExtensible]] , [[PreventExtensions]] , [[GetOwnProperty]] , [[DefineOwnProperty]] , [[HasProperty]] , [[Get]] , [[Set]] , [[Delete]] , and [[OwnPropertyKeys]] internal methods use the definitions in this section, and its other essential internal methods use the definitions found in 10.1 . These methods are installed by ModuleNamespaceCreate .
+
+Module namespace exotic objects have the internal slots defined in Table 29 .
+
+Table 29: Internal Slots of Module Namespace Exotic Objects
+
+Internal Slot
+
+Type
+
+Description
+
+[[Module]]
+
+a Module Record
+
+The Module Record whose exports this namespace exposes.
+
+[[Exports]]
+
+a List of Strings
+
+A List whose elements are the String values of the exported names exposed as own properties of this object. The list is sorted according to lexicographic code unit order .
+
+10.4.6.1 [[GetPrototypeOf]] ( )
+
+The [[GetPrototypeOf]] internal method of a module namespace exotic object takes no arguments and returns a normal completion containing null . It performs the following steps when called:
+
+- Return null .
+
+10.4.6.2 [[SetPrototypeOf]] ( proto )
+
+The [[SetPrototypeOf]] internal method of a module namespace exotic object obj takes argument proto (an Object or null ) and returns a normal completion containing a Boolean. It performs the following steps when called:
+
+- Return ! SetImmutablePrototype ( obj , proto ).
+
+10.4.6.3 [[IsExtensible]] ( )
+
+The [[IsExtensible]] internal method of a module namespace exotic object takes no arguments and returns a normal completion containing false . It performs the following steps when called:
+
+- Return false .
+
+10.4.6.4 [[PreventExtensions]] ( )
+
+The [[PreventExtensions]] internal method of a module namespace exotic object takes no arguments and returns a normal completion containing true . It performs the following steps when called:
+
+- Return true .
+
+10.4.6.5 [[GetOwnProperty]] ( propertyKey )
+
+The [[GetOwnProperty]] internal method of a module namespace exotic object obj takes argument propertyKey (a property key ) and returns either a normal completion containing either a Property Descriptor or undefined , or a throw completion . It performs the following steps when called:
+
+- If propertyKey is a Symbol , return OrdinaryGetOwnProperty ( obj , propertyKey ).
+- Let exports be obj . [[Exports]] .
+- If exports does not contain propertyKey , return undefined .
+- Let value be ? obj . [[Get]] ( propertyKey , obj ).
+- Return PropertyDescriptor { [[Value]] : value , [[Writable]] : true , [[Enumerable]] : true , [[Configurable]] : false }.
+
+10.4.6.6 [[DefineOwnProperty]] ( propertyKey , propertyDesc )
+
+The [[DefineOwnProperty]] internal method of a module namespace exotic object obj takes arguments propertyKey (a property key ) and propertyDesc (a Property Descriptor ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- If propertyKey is a Symbol , return ! OrdinaryDefineOwnProperty ( obj , propertyKey , propertyDesc ).
+- Let current be ? obj . [[GetOwnProperty]] ( propertyKey ).
+- If current is undefined , return false .
+- If propertyDesc has a [[Configurable]] field and propertyDesc . [[Configurable]] is true , return false .
+- If propertyDesc has an [[Enumerable]] field and propertyDesc . [[Enumerable]] is false , return false .
+- If IsAccessorDescriptor ( propertyDesc ) is true , return false .
+- If propertyDesc has a [[Writable]] field and propertyDesc . [[Writable]] is false , return false .
+- If propertyDesc has a [[Value]] field, return SameValue ( propertyDesc . [[Value]] , current . [[Value]] ).
+- Return true .
+
+10.4.6.7 [[HasProperty]] ( propertyKey )
+
+The [[HasProperty]] internal method of a module namespace exotic object obj takes argument propertyKey (a property key ) and returns a normal completion containing a Boolean. It performs the following steps when called:
+
+- If propertyKey is a Symbol , return ! OrdinaryHasProperty ( obj , propertyKey ).
+- Let exports be obj . [[Exports]] .
+- If exports contains propertyKey , return true .
+- Return false .
+
+10.4.6.8 [[Get]] ( propertyKey , receiver )
+
+The [[Get]] internal method of a module namespace exotic object obj takes arguments propertyKey (a property key ) and receiver (an ECMAScript language value ) and returns either a normal completion containing an ECMAScript language value or a throw completion . It performs the following steps when called:
+
+- If propertyKey is a Symbol , then - Return ! OrdinaryGet ( obj , propertyKey , receiver ).
+
+- Let exports be obj . [[Exports]] .
+- If exports does not contain propertyKey , return undefined .
+- Let module be obj . [[Module]] .
+- Let binding be module . ResolveExport ( propertyKey ).
+- Assert : binding is a ResolvedBinding Record .
+- Let targetModule be binding . [[Module]] .
+- Assert : targetModule is not undefined .
+- If binding . [[BindingName]] is namespace , then - Return GetModuleNamespace ( targetModule ).
+
+- Let targetEnv be targetModule . [[Environment]] .
+- If targetEnv is empty , throw a ReferenceError exception.
+- Return ? targetEnv . GetBindingValue ( binding . [[BindingName]] , true ).
+
+Note
+ResolveExport is side-effect free. Each time this operation is called with a specific exportName , resolveSet pair as arguments it must return the same result. An implementation might choose to pre-compute or cache the ResolveExport results for the [[Exports]] of each module namespace exotic object .
+
+10.4.6.9 [[Set]] ( propertyKey , value , receiver )
+
+The [[Set]] internal method of a module namespace exotic object takes arguments propertyKey (a property key ), value (an ECMAScript language value ), and receiver (an ECMAScript language value ) and returns a normal completion containing false . It performs the following steps when called:
+
+- Return false .
+
+10.4.6.10 [[Delete]] ( propertyKey )
+
+The [[Delete]] internal method of a module namespace exotic object obj takes argument propertyKey (a property key ) and returns a normal completion containing a Boolean. It performs the following steps when called:
+
+- If propertyKey is a Symbol , then - Return ! OrdinaryDelete ( obj , propertyKey ).
+
+- Let exports be obj . [[Exports]] .
+- If exports contains propertyKey , return false .
+- Return true .
+
+10.4.6.11 [[OwnPropertyKeys]] ( )
+
+The [[OwnPropertyKeys]] internal method of a module namespace exotic object obj takes no arguments and returns a normal completion containing a List of property keys . It performs the following steps when called:
+
+- Let exports be obj . [[Exports]] .
+- Let symbolKeys be OrdinaryOwnPropertyKeys ( obj ).
+- Return the list-concatenation of exports and symbolKeys .
+
+10.4.6.12 ModuleNamespaceCreate ( module , exports )
+
+The abstract operation ModuleNamespaceCreate takes arguments module (a Module Record ) and exports (a List of Strings) and returns a module namespace exotic object . It is used to specify the creation of new module namespace exotic objects . It performs the following steps when called:
+
+- Assert : module . [[Namespace]] is empty .
+- Let internalSlotsList be the internal slots listed in Table 29 .
+- Let namespace be MakeBasicObject ( internalSlotsList ).
+- Set namespace 's essential internal methods to the definitions specified in 10.4.6 .
+- Set namespace . [[Module]] to module .
+- Let sortedExports be a List whose elements are the elements of exports , sorted according to lexicographic code unit order .
+- Set namespace . [[Exports]] to sortedExports .
+- Create own properties of namespace corresponding to the definitions in 28.3 .
+- Set module . [[Namespace]] to namespace .
+- Return namespace .
