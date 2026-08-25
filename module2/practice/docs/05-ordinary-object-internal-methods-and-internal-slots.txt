@@ -1,0 +1,317 @@
+# 10.1 Ordinary Object Internal Methods and Internal Slots
+# джерело: https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-ordinary-object-internal-methods-and-internal-slots
+# отримано: 2026-08-25
+
+10.1 Ordinary Object Internal Methods and Internal Slots
+
+All ordinary objects have an internal slot called [[Prototype]] . The value of this internal slot is either null or an object and is used for implementing inheritance. Assume a property named propertyKey is missing from an ordinary object obj but exists on its [[Prototype]] object. If propertyKey refers to a data property on the [[Prototype]] object, obj inherits it for get access, making it behave as if propertyKey was a property of obj . If propertyKey refers to a writable data property on the [[Prototype]] object, set access of propertyKey on obj creates a new data property named propertyKey on obj . If propertyKey refers to a non-writable data property on the [[Prototype]] object, set access of propertyKey on obj fails. If propertyKey refers to an accessor property on the [[Prototype]] object, the accessor is inherited by obj for both get access and set access.
+
+Every ordinary object has a Boolean-valued [[Extensible]] internal slot which is used to fulfill the extensibility-related internal method invariants specified in 6.1.7.3 . Namely, once the value of an object's [[Extensible]] internal slot has been set to false , it is no longer possible to add properties to the object, to modify the value of the object's [[Prototype]] internal slot, or to subsequently change the value of [[Extensible]] to true .
+
+In the following algorithm descriptions, assume obj is an ordinary object , propertyKey is a property key value, value is any ECMAScript language value , and propertyDesc is a Property Descriptor record.
+
+Each ordinary object internal method delegates to a similarly-named abstract operation. If such an abstract operation depends on another internal method, then the internal method is invoked on obj rather than calling the similarly-named abstract operation directly. These semantics ensure that exotic objects have their overridden internal methods invoked when ordinary object internal methods are applied to them.
+
+10.1.1 [[GetPrototypeOf]] ( )
+
+The [[GetPrototypeOf]] internal method of an ordinary object obj takes no arguments and returns a normal completion containing either an Object or null . It performs the following steps when called:
+
+- Return OrdinaryGetPrototypeOf ( obj ).
+
+10.1.1.1 OrdinaryGetPrototypeOf ( obj )
+
+The abstract operation OrdinaryGetPrototypeOf takes argument obj (an Object) and returns an Object or null . It performs the following steps when called:
+
+- Return obj . [[Prototype]] .
+
+10.1.2 [[SetPrototypeOf]] ( proto )
+
+The [[SetPrototypeOf]] internal method of an ordinary object obj takes argument proto (an Object or null ) and returns a normal completion containing a Boolean. It performs the following steps when called:
+
+- Return OrdinarySetPrototypeOf ( obj , proto ).
+
+10.1.2.1 OrdinarySetPrototypeOf ( obj , proto )
+
+The abstract operation OrdinarySetPrototypeOf takes arguments obj (an Object) and proto (an Object or null ) and returns a Boolean. It performs the following steps when called:
+
+- Let current be obj . [[Prototype]] .
+- If SameValue ( proto , current ) is true , return true .
+- Let extensible be obj . [[Extensible]] .
+- If extensible is false , return false .
+- Let cursor be proto .
+- Let done be false .
+- Repeat, while done is false , - If cursor is null , then - Set done to true .
+
+- Else if SameValue ( cursor , obj ) is true , then - Return false .
+
+- Else, - If cursor . [[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1 , set done to true .
+- Else, set cursor to cursor . [[Prototype]] .
+
+- Set obj . [[Prototype]] to proto .
+- Return true .
+
+Note
+The loop in step 7 guarantees that there will be no cycles in any prototype chain that only includes objects that use the ordinary object definitions for [[GetPrototypeOf]] and [[SetPrototypeOf]] .
+
+10.1.3 [[IsExtensible]] ( )
+
+The [[IsExtensible]] internal method of an ordinary object obj takes no arguments and returns a normal completion containing a Boolean. It performs the following steps when called:
+
+- Return OrdinaryIsExtensible ( obj ).
+
+10.1.3.1 OrdinaryIsExtensible ( obj )
+
+The abstract operation OrdinaryIsExtensible takes argument obj (an Object) and returns a Boolean. It performs the following steps when called:
+
+- Return obj . [[Extensible]] .
+
+10.1.4 [[PreventExtensions]] ( )
+
+The [[PreventExtensions]] internal method of an ordinary object obj takes no arguments and returns a normal completion containing true . It performs the following steps when called:
+
+- Return OrdinaryPreventExtensions ( obj ).
+
+10.1.4.1 OrdinaryPreventExtensions ( obj )
+
+The abstract operation OrdinaryPreventExtensions takes argument obj (an Object) and returns true . It performs the following steps when called:
+
+- Set obj . [[Extensible]] to false .
+- Return true .
+
+10.1.5 [[GetOwnProperty]] ( propertyKey )
+
+The [[GetOwnProperty]] internal method of an ordinary object obj takes argument propertyKey (a property key ) and returns a normal completion containing either a Property Descriptor or undefined . It performs the following steps when called:
+
+- Return OrdinaryGetOwnProperty ( obj , propertyKey ).
+
+10.1.5.1 OrdinaryGetOwnProperty ( obj , propertyKey )
+
+The abstract operation OrdinaryGetOwnProperty takes arguments obj (an Object) and propertyKey (a property key ) and returns a Property Descriptor or undefined . It performs the following steps when called:
+
+- If obj does not have an own property with key propertyKey , return undefined .
+- Let propertyDesc be a newly created Property Descriptor with no fields.
+- Let ownProperty be obj 's own property whose key is propertyKey .
+- If ownProperty is a data property , then - Set propertyDesc . [[Value]] to the value of ownProperty 's [[Value]] attribute.
+- Set propertyDesc . [[Writable]] to the value of ownProperty 's [[Writable]] attribute.
+
+- Else, - Assert : ownProperty is an accessor property .
+- Set propertyDesc . [[Getter]] to the value of ownProperty 's [[Getter]] attribute.
+- Set propertyDesc . [[Setter]] to the value of ownProperty 's [[Setter]] attribute.
+
+- Set propertyDesc . [[Enumerable]] to the value of ownProperty 's [[Enumerable]] attribute.
+- Set propertyDesc . [[Configurable]] to the value of ownProperty 's [[Configurable]] attribute.
+- Return propertyDesc .
+
+10.1.6 [[DefineOwnProperty]] ( propertyKey , propertyDesc )
+
+The [[DefineOwnProperty]] internal method of an ordinary object obj takes arguments propertyKey (a property key ) and propertyDesc (a Property Descriptor ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Return ? OrdinaryDefineOwnProperty ( obj , propertyKey , propertyDesc ).
+
+10.1.6.1 OrdinaryDefineOwnProperty ( obj , propertyKey , propertyDesc )
+
+The abstract operation OrdinaryDefineOwnProperty takes arguments obj (an Object), propertyKey (a property key ), and propertyDesc (a Property Descriptor ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Let current be ? obj . [[GetOwnProperty]] ( propertyKey ) .
+- Let extensible be ? IsExtensible ( obj ).
+- Return ValidateAndApplyPropertyDescriptor ( obj , propertyKey , extensible , propertyDesc , current ).
+
+10.1.6.2 IsCompatiblePropertyDescriptor ( extensible , propertyDesc , current )
+
+The abstract operation IsCompatiblePropertyDescriptor takes arguments extensible (a Boolean), propertyDesc (a Property Descriptor ), and current (a Property Descriptor or undefined ) and returns a Boolean. It performs the following steps when called:
+
+- Return ValidateAndApplyPropertyDescriptor ( undefined , "" , extensible , propertyDesc , current ).
+
+10.1.6.3 ValidateAndApplyPropertyDescriptor ( obj , propertyKey , extensible , propertyDesc , current )
+
+The abstract operation ValidateAndApplyPropertyDescriptor takes arguments obj (an Object or undefined ), propertyKey (a property key ), extensible (a Boolean), propertyDesc (a Property Descriptor ), and current (a Property Descriptor or undefined ) and returns a Boolean. It returns true if and only if propertyDesc can be applied as the property of an object with specified extensibility and current property current while upholding invariants . When such application is possible and obj is not undefined , it is performed for the property named propertyKey (which is created if necessary). It performs the following steps when called:
+
+- Assert : propertyKey is a property key .
+- If current is undefined , then - If extensible is false , return false .
+- If obj is undefined , return true .
+- If IsAccessorDescriptor ( propertyDesc ) is true , then - Create an own accessor property named propertyKey of object obj whose [[Getter]] , [[Setter]] , [[Enumerable]] , and [[Configurable]] attributes are set to the value of the corresponding field in propertyDesc if propertyDesc has that field, or to the attribute's default value otherwise.
+
+- Else, - Create an own data property named propertyKey of object obj whose [[Value]] , [[Writable]] , [[Enumerable]] , and [[Configurable]] attributes are set to the value of the corresponding field in propertyDesc if propertyDesc has that field, or to the attribute's default value otherwise.
+
+- Return true .
+
+- Assert : current is a fully populated Property Descriptor .
+- If propertyDesc does not have any fields, return true .
+- If current . [[Configurable]] is false , then - If propertyDesc has a [[Configurable]] field and propertyDesc . [[Configurable]] is true , return false .
+- If propertyDesc has an [[Enumerable]] field and propertyDesc . [[Enumerable]] is not current . [[Enumerable]] , return false .
+- If IsGenericDescriptor ( propertyDesc ) is false and IsAccessorDescriptor ( propertyDesc ) is not IsAccessorDescriptor ( current ), return false .
+- If IsAccessorDescriptor ( current ) is true , then - If propertyDesc has a [[Getter]] field and SameValue ( propertyDesc . [[Getter]] , current . [[Getter]] ) is false , return false .
+- If propertyDesc has a [[Setter]] field and SameValue ( propertyDesc . [[Setter]] , current . [[Setter]] ) is false , return false .
+
+- Else if current . [[Writable]] is false , then - If propertyDesc has a [[Writable]] field and propertyDesc . [[Writable]] is true , return false .
+- NOTE : SameValue returns true for NaN values which may be distinguishable by other means. Returning here ensures that any existing property of obj remains unmodified.
+- If propertyDesc has a [[Value]] field, return SameValue ( propertyDesc . [[Value]] , current . [[Value]] ).
+
+- If obj is not undefined , then - If IsDataDescriptor ( current ) is true and IsAccessorDescriptor ( propertyDesc ) is true , then - If propertyDesc has a [[Configurable]] field, let configurable be propertyDesc . [[Configurable]] ; else let configurable be current . [[Configurable]] .
+- If propertyDesc has an [[Enumerable]] field, let enumerable be propertyDesc . [[Enumerable]] ; else let enumerable be current . [[Enumerable]] .
+- Replace the property named propertyKey of object obj with an accessor property whose [[Configurable]] and [[Enumerable]] attributes are set to configurable and enumerable , respectively, and whose [[Getter]] and [[Setter]] attributes are set to the value of the corresponding field in propertyDesc if propertyDesc has that field, or to the attribute's default value otherwise.
+
+- Else if IsAccessorDescriptor ( current ) is true and IsDataDescriptor ( propertyDesc ) is true , then - If propertyDesc has a [[Configurable]] field, let configurable be propertyDesc . [[Configurable]] ; else let configurable be current . [[Configurable]] .
+- If propertyDesc has an [[Enumerable]] field, let enumerable be propertyDesc . [[Enumerable]] ; else let enumerable be current . [[Enumerable]] .
+- Replace the property named propertyKey of object obj with a data property whose [[Configurable]] and [[Enumerable]] attributes are set to configurable and enumerable , respectively, and whose [[Value]] and [[Writable]] attributes are set to the value of the corresponding field in propertyDesc if propertyDesc has that field, or to the attribute's default value otherwise.
+
+- Else, - For each field name fieldName of propertyDesc , set the attribute named fieldName of the property named propertyKey of object obj to the value of propertyDesc 's fieldName field.
+
+- Return true .
+
+10.1.7 [[HasProperty]] ( propertyKey )
+
+The [[HasProperty]] internal method of an ordinary object obj takes argument propertyKey (a property key ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Return ? OrdinaryHasProperty ( obj , propertyKey ).
+
+10.1.7.1 OrdinaryHasProperty ( obj , propertyKey )
+
+The abstract operation OrdinaryHasProperty takes arguments obj (an Object) and propertyKey (a property key ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Let hasOwn be ? obj . [[GetOwnProperty]] ( propertyKey ) .
+- If hasOwn is not undefined , return true .
+- Let parent be ? obj . [[GetPrototypeOf]] () .
+- If parent is not null , then - Return ? parent . [[HasProperty]] ( propertyKey ) .
+
+- Return false .
+
+10.1.8 [[Get]] ( propertyKey , receiver )
+
+The [[Get]] internal method of an ordinary object obj takes arguments propertyKey (a property key ) and receiver (an ECMAScript language value ) and returns either a normal completion containing an ECMAScript language value or a throw completion . It performs the following steps when called:
+
+- Return ? OrdinaryGet ( obj , propertyKey , receiver ).
+
+10.1.8.1 OrdinaryGet ( obj , propertyKey , receiver )
+
+The abstract operation OrdinaryGet takes arguments obj (an Object), propertyKey (a property key ), and receiver (an ECMAScript language value ) and returns either a normal completion containing an ECMAScript language value or a throw completion . It performs the following steps when called:
+
+- Let propertyDesc be ? obj . [[GetOwnProperty]] ( propertyKey ) .
+- If propertyDesc is undefined , then - Let parent be ? obj . [[GetPrototypeOf]] () .
+- If parent is null , return undefined .
+- Return ? parent . [[Get]] ( propertyKey , receiver ) .
+
+- If IsDataDescriptor ( propertyDesc ) is true , return propertyDesc . [[Value]] .
+- Assert : IsAccessorDescriptor ( propertyDesc ) is true .
+- Let getter be propertyDesc . [[Getter]] .
+- If getter is undefined , return undefined .
+- Return ? Call ( getter , receiver ).
+
+10.1.9 [[Set]] ( propertyKey , value , receiver )
+
+The [[Set]] internal method of an ordinary object obj takes arguments propertyKey (a property key ), value (an ECMAScript language value ), and receiver (an ECMAScript language value ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Return ? OrdinarySet ( obj , propertyKey , value , receiver ).
+
+10.1.9.1 OrdinarySet ( obj , propertyKey , value , receiver )
+
+The abstract operation OrdinarySet takes arguments obj (an Object), propertyKey (a property key ), value (an ECMAScript language value ), and receiver (an ECMAScript language value ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Let ownDesc be ? obj . [[GetOwnProperty]] ( propertyKey ) .
+- Return ? OrdinarySetWithOwnDescriptor ( obj , propertyKey , value , receiver , ownDesc ).
+
+10.1.9.2 OrdinarySetWithOwnDescriptor ( obj , propertyKey , value , receiver , ownDesc )
+
+The abstract operation OrdinarySetWithOwnDescriptor takes arguments obj (an Object), propertyKey (a property key ), value (an ECMAScript language value ), receiver (an ECMAScript language value ), and ownDesc (a Property Descriptor or undefined ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- If ownDesc is undefined , then - Let parent be ? obj . [[GetPrototypeOf]] () .
+- If parent is not null , return ? parent . [[Set]] ( propertyKey , value , receiver ) .
+- Set ownDesc to the PropertyDescriptor { [[Value]] : undefined , [[Writable]] : true , [[Enumerable]] : true , [[Configurable]] : true }.
+
+- If IsDataDescriptor ( ownDesc ) is true , then - If ownDesc . [[Writable]] is false , return false .
+- If receiver is not an Object , return false .
+- Let existingDesc be ? receiver . [[GetOwnProperty]] ( propertyKey ) .
+- If existingDesc is undefined , then - Assert : receiver does not currently have a property propertyKey .
+- Return ? CreateDataProperty ( receiver , propertyKey , value ).
+
+- If IsAccessorDescriptor ( existingDesc ) is true , return false .
+- If existingDesc . [[Writable]] is false , return false .
+- Let valueDesc be the PropertyDescriptor { [[Value]] : value }.
+- Return ? receiver . [[DefineOwnProperty]] ( propertyKey , valueDesc ) .
+
+- Assert : IsAccessorDescriptor ( ownDesc ) is true .
+- Let setter be ownDesc . [[Setter]] .
+- If setter is undefined , return false .
+- Perform ? Call ( setter , receiver , « value »).
+- Return true .
+
+10.1.10 [[Delete]] ( propertyKey )
+
+The [[Delete]] internal method of an ordinary object obj takes argument propertyKey (a property key ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Return ? OrdinaryDelete ( obj , propertyKey ).
+
+10.1.10.1 OrdinaryDelete ( obj , propertyKey )
+
+The abstract operation OrdinaryDelete takes arguments obj (an Object) and propertyKey (a property key ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Let propertyDesc be ? obj . [[GetOwnProperty]] ( propertyKey ) .
+- If propertyDesc is undefined , return true .
+- If propertyDesc . [[Configurable]] is true , then - Remove the own property with name propertyKey from obj .
+- Return true .
+
+- Return false .
+
+10.1.11 [[OwnPropertyKeys]] ( )
+
+The [[OwnPropertyKeys]] internal method of an ordinary object obj takes no arguments and returns a normal completion containing a List of property keys . It performs the following steps when called:
+
+- Return OrdinaryOwnPropertyKeys ( obj ).
+
+10.1.11.1 OrdinaryOwnPropertyKeys ( obj )
+
+The abstract operation OrdinaryOwnPropertyKeys takes argument obj (an Object) and returns a List of property keys . It performs the following steps when called:
+
+- Let keys be a new empty List .
+- For each own property key propertyKey of obj such that propertyKey is an array index , in ascending numeric index order, do - Append propertyKey to keys .
+
+- For each own property key propertyKey of obj such that propertyKey is a String and propertyKey is not an array index , in ascending chronological order of property creation, do - Append propertyKey to keys .
+
+- For each own property key propertyKey of obj such that propertyKey is a Symbol , in ascending chronological order of property creation, do - Append propertyKey to keys .
+
+- Return keys .
+
+10.1.12 OrdinaryObjectCreate ( proto [ , additionalInternalSlotsList ] )
+
+The abstract operation OrdinaryObjectCreate takes argument proto (an Object or null ) and optional argument additionalInternalSlotsList (a List of names of internal slots) and returns an Object. It is used to specify the runtime creation of new ordinary objects . additionalInternalSlotsList contains the names of additional internal slots that must be defined as part of the object, beyond [[Prototype]] and [[Extensible]] . If additionalInternalSlotsList is not provided, a new empty List is used. It performs the following steps when called:
+
+- Let internalSlotsList be « [[Prototype]] , [[Extensible]] ».
+- If additionalInternalSlotsList is present, set internalSlotsList to the list-concatenation of internalSlotsList and additionalInternalSlotsList .
+- Let obj be MakeBasicObject ( internalSlotsList ).
+- Set obj . [[Prototype]] to proto .
+- Return obj .
+
+Note
+Although OrdinaryObjectCreate does little more than call MakeBasicObject , its use communicates the intention to create an ordinary object , and not an exotic one. Thus, within this specification, it is not called by any algorithm that subsequently modifies the internal methods of the object in ways that would make the result non-ordinary. Operations that create exotic objects invoke MakeBasicObject directly.
+
+10.1.13 OrdinaryCreateFromConstructor ( ctor , intrinsicDefaultProto [ , internalSlotsList ] )
+
+The abstract operation OrdinaryCreateFromConstructor takes arguments ctor (a function object ) and intrinsicDefaultProto (a String) and optional argument internalSlotsList (a List of names of internal slots) and returns either a normal completion containing an Object or a throw completion . It creates an ordinary object whose [[Prototype]] value is retrieved from a constructor 's "prototype" property, if it exists. Otherwise the intrinsic named by intrinsicDefaultProto is used for [[Prototype]] . internalSlotsList contains the names of additional internal slots that must be defined as part of the object. If internalSlotsList is not provided, a new empty List is used. It performs the following steps when called:
+
+- Assert : intrinsicDefaultProto is this specification's name of an intrinsic object. The corresponding object must be an intrinsic that is intended to be used as the [[Prototype]] value of an object.
+- Let proto be ? GetPrototypeFromConstructor ( ctor , intrinsicDefaultProto ).
+- If internalSlotsList is present, let slots be internalSlotsList .
+- Else, let slots be a new empty List .
+- Return OrdinaryObjectCreate ( proto , slots ).
+
+10.1.14 GetPrototypeFromConstructor ( ctor , intrinsicDefaultProto )
+
+The abstract operation GetPrototypeFromConstructor takes arguments ctor (a function object ) and intrinsicDefaultProto (a String) and returns either a normal completion containing an Object or a throw completion . It determines the [[Prototype]] value that should be used to create an object corresponding to a specific constructor . The value is retrieved from the constructor 's "prototype" property, if it exists. Otherwise the intrinsic named by intrinsicDefaultProto is used for [[Prototype]] . It performs the following steps when called:
+
+- Assert : intrinsicDefaultProto is this specification's name of an intrinsic object. The corresponding object must be an intrinsic that is intended to be used as the [[Prototype]] value of an object.
+- Let proto be ? Get ( ctor , "prototype" ).
+- If proto is not an Object , then - Let realm be ? GetFunctionRealm ( ctor ).
+- Set proto to realm 's intrinsic object named intrinsicDefaultProto .
+
+- Return proto .
+
+Note
+If ctor does not supply a [[Prototype]] value, the default value that is used is obtained from the realm of the ctor function rather than from the running execution context .
+
+10.1.15 RequireInternalSlot ( obj , internalSlot )
+
+The abstract operation RequireInternalSlot takes arguments obj (an ECMAScript language value ) and internalSlot (an internal slot name) and returns either a normal completion containing unused or a throw completion . It throws an exception unless obj is an Object and has the given internal slot. It performs the following steps when called:
+
+- If obj is not an Object , throw a TypeError exception.
+- If obj does not have an internalSlot internal slot, throw a TypeError exception.
+- Return unused .

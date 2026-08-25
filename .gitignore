@@ -9,4 +9,5 @@ __pycache__/
 *.pyc
 .claude/
 CLAUDE.md
-docs/
+# лише коренева тека — module2/practice/docs/ це корпус практики, він у репо
+/docs/
