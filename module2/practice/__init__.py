@@ -83,3 +83,23 @@ index.json з переліком і адресами джерел. Завант�
 на джерело агент дає, хоч в одному прогоні з двох скоротив його до номера
 розділу.
 """
+
+
+def _load_env() -> None:
+    """Підтягує module2/.env, щоб прогони практики бачили свої налаштування —
+    QDRANT_URL, PRACTICE_DOCS, PRACTICE_RETRIEVER.
+
+    Те саме робить config.py, але він вимагає ключа Anthropic і завершує процес,
+    коли ключа немає. Безкоштовним прогонам ключ не потрібен, а налаштування
+    потрібні, тож читання .env живе тут окремо. Значення, задані в оточенні,
+    сильніші за файл: load_dotenv наявних змінних не перезаписує.
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    import pathlib as _pathlib
+    load_dotenv(_pathlib.Path(__file__).resolve().parent.parent / ".env")
+
+
+_load_env()

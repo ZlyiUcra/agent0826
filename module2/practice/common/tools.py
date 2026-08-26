@@ -87,23 +87,67 @@ SEARCH_DOCS_SCHEMA = {
 }
 
 _RETRIEVERS = {"vector": VectorIndex, "lexical": LexicalIndex}
+
+# Сховище з челенджа підключається на вимогу. Клас лежить у
+# practice/challenges/qdrant_store.py; сам його імпорт нічого не робить, але
+# створення індексу вимагає піднятого сервера Qdrant. Тому імпорт живе
+# всередині функції — так само, як імпорт core.agent у common/rewrite.py:
+# інакше прогони на матриці в пам'яті залежали б від чужого процесу.
+_LAZY_RETRIEVERS = {"qdrant": ("practice.challenges.qdrant_store", "QdrantIndex")}
+
+# «auto» — не окреме сховище, а правило вибору між двома наявними.
+AUTO = "auto"
+
 _index = None
 _backend_name = None
+
+
+def _retriever_class(name: str):
+    if name in _RETRIEVERS:
+        return _RETRIEVERS[name]
+    import importlib
+    module_name, attr = _LAZY_RETRIEVERS[name]
+    return getattr(importlib.import_module(module_name), attr)
+
+
+def _auto_index(passages=None):
+    """Qdrant, якщо він доступний; інакше матриця в пам'яті.
+
+    Правило повністю живе в challenges/qdrant_store.try_open: сервер є і
+    потрібні фрагменти в ньому — беремо сервер; сервера немає — беремо
+    документи; сервер є, а фрагментів у ньому немає — заливаємо їх туди з
+    документів і беремо сервер. Причина вибору друкується рядком, щоб з виводу
+    прогону завжди було видно, звідки прийшли фрагменти: мовчазна підміна
+    сховища — саме те, через що потім не сходяться числа.
+    """
+    try:
+        from practice.challenges import qdrant_store
+        index, why = qdrant_store.try_open(passages)
+    except Exception as e:                       # сервер може відповісти будь-чим
+        index, why = None, f"{type(e).__name__}: {e}"
+    if index is not None:
+        print(f"  сховище:      Qdrant — {why}")
+        return index
+    print(f"  сховище:      документи ({why})")
+    return VectorIndex(passages=passages) if passages is not None else VectorIndex()
 
 
 def get_index(backend: str = None):
     """Індекс потрібного виду, один на процес.
 
-    Вид береться з аргументу або зі змінної оточення PRACTICE_RETRIEVER
-    («vector» за замовчуванням, «lexical» — щоб прогнати агента на пошуку по словах).
+    Вид береться з аргументу або зі змінної оточення PRACTICE_RETRIEVER:
+    «auto» за замовчуванням (Qdrant, якщо доступний, інакше документи),
+    «vector» — завжди матриця в пам'яті, «qdrant» — лише сервер, без запасного
+    шляху, «lexical» — пошук по словах.
     """
     global _index, _backend_name
-    name = backend or os.getenv("PRACTICE_RETRIEVER", "vector")
-    if name not in _RETRIEVERS:
+    name = backend or os.getenv("PRACTICE_RETRIEVER", AUTO)
+    known = set(_RETRIEVERS) | set(_LAZY_RETRIEVERS) | {AUTO}
+    if name not in known:
         raise SystemExit(f"Невідомий пошук '{name}'. Доступні: "
-                         f"{', '.join(sorted(_RETRIEVERS))}")
+                         f"{', '.join(sorted(known))}")
     if _index is None or _backend_name != name:
-        _index = _RETRIEVERS[name]()
+        _index = _auto_index() if name == AUTO else _retriever_class(name)()
         _backend_name = name
     return _index
 
@@ -189,11 +233,17 @@ PRACTICE_PROMPT = (
     "Rules you must follow:\n"
     "1. Search before you answer. Never state a fact about the specification "
     "that did not come back from search_docs in this conversation.\n"
-    "2. If the search returns nothing, say plainly that the available excerpts "
-    "do not cover the question, and name what they do cover. Do not answer from "
-    "your own knowledge of JavaScript, do not guess, do not offer a plausible "
-    "reconstruction.\n"
-    "3. Cite the section you used, by the id shown in brackets, "
+    "2. Your subject is the ECMAScript specification and nothing else. A "
+    "question about cooking, geography, travel, prices or any other field is not "
+    "yours: say plainly that you are not a specialist in that subject, that you "
+    "are a reference assistant for the ECMAScript specification, and stop there — "
+    "do not answer it even if you happen to know the answer.\n"
+    "3. If the question IS about the specification but the excerpts available to "
+    "you do not cover it, say so, name what they do cover, and point to "
+    "https://tc39.es/ecma262/ where the whole specification is published. Never "
+    "fill the gap from your own knowledge of JavaScript, never guess, never offer "
+    "a plausible reconstruction.\n"
+    "4. Cite the section you used, by the id shown in brackets, "
     "e.g. [18-string-objects#22.1.3.11].\n"
-    "4. Answer in English, in plain prose, no Markdown tables and no emoji."
+    "5. Answer in English, in plain prose, no Markdown tables and no emoji."
 )

@@ -26,6 +26,7 @@ France?» модель відмовиться легко: питання явн�
     python -m practice.base.ask                 # сценарій replace
     python -m practice.base.ask absent
     python -m practice.base.ask known --lexical # той самий агент на BM25
+    python -m practice.base.ask replace --qdrant # той самий агент на сховищі Qdrant
     python -m practice.base.ask thin --rewrite  # з переписуванням бідного запиту
     python -m practice.base.ask --list          # перелік сценаріїв, $0
 """
@@ -102,7 +103,11 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 0
 
-    retriever = "lexical" if "--lexical" in argv else "vector"
+    retriever = "vector"
+    if "--lexical" in argv:
+        retriever = "lexical"
+    elif "--qdrant" in argv:
+        retriever = "qdrant"
     if "--rewrite" in argv:
         os.environ["PRACTICE_REWRITE"] = "1"
     positional = [a for a in argv if not a.startswith("-")]
