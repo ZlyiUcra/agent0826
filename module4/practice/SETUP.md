@@ -95,15 +95,23 @@ cp .env.example .env    # і впишіть ANTHROPIC_API_KEY
 Позначка `$0` означає, що прогін не звертається до моделей Anthropic і грошей не коштує.
 
 ```
-.venv/bin/python -m practice.base.smoke           # $0: підмножини, схеми, реєстрація, тригери
-.venv/bin/python -m practice.base.smoke --warm    # $0: те саме плюс збірка векторних індексів
-.venv/bin/python -m practice.base.system attrs    # платно: один запит через систему
-.venv/bin/python -m practice.base.system --confirm  # $0: підтвердити передачу людині
-.venv/bin/python -m practice.base.single attrs    # платно: той самий запит через одного агента
-.venv/bin/python -m practice.base.compare         # платно: усі п'ять запитів через обох, з вимірами
-.venv/bin/python -m practice.challenges.scale     # платно, дешева модель: вимір від обсягу корпусу
-.venv/bin/python -m practice.challenges.overlap   # $0: чи допомагає перетин фрагментів пошуку
+.venv/bin/python -m practice.base.smoke              # $0: підмножини, схеми, реєстрація, тригери
+.venv/bin/python -m practice.base.smoke --warm       # $0: те саме плюс збірка векторних індексів
+.venv/bin/python -m practice.base.system --list      # $0: п'ять запитів виміру і перелік прапорців
+.venv/bin/python -m practice.base.system "питання"   # платно: своє питання, мовою питання
+.venv/bin/python -m practice.base.system attrs       # платно: один іменований запит через систему
+.venv/bin/python -m practice.base.system --confirm   # $0: підтвердити передачу людині
+.venv/bin/python -m practice.base.single attrs       # платно: той самий запит через одного агента
+.venv/bin/python -m practice.base.compare            # платно: усі п'ять запитів через обох, з вимірами
+.venv/bin/python -m practice.challenges.scale        # платно, дешева модель: вимір від обсягу корпусу
+.venv/bin/python -m practice.challenges.overlap      # $0: чи допомагає перетин фрагментів пошуку
+.venv/bin/python -m practice.challenges.qdrant_store --info     # $0: що зараз у базі
+.venv/bin/python -m practice.challenges.spec_download --list    # $0: розділи всієї специфікації
 ```
+
+Прапорці `system`, `single` і `compare`: `--lexical` — пошук по словах замість ембедингів, `--rewrite` —
+переписування бідного запиту дешевою моделлю, `--live` — живий сайт tc39.es для спеціаліста EXOTIC. Що саме
+шукати у виводі кожної команди — у README, розділ «Як перевірити імплементацію».
 
 Оплачувані прогони за замовчуванням не запускаються нічим, окрім явної команди. Вартість друкується
 після кожного прогону; порядок цін видно з `core/cost.py`, а самі числа гуляють між прогонами в
@@ -111,7 +119,8 @@ cp .env.example .env    # і впишіть ANTHROPIC_API_KEY
 
 ## Змінні оточення
 
-- `PRACTICE_RETRIEVER` — `vector` (типово) або `lexical`: яким пошуком користуються спеціалісти.
+- `PRACTICE_RETRIEVER` — `auto` (типово): база, якщо сервер піднято, інакше документи. Решта значень
+  вимикають вибір: `qdrant` — лише база, `vector` — лише документи, `lexical` — пошук по словах.
 - `PRACTICE_REWRITE` — `1` вмикає переписування бідного запиту (додатковий виклик дешевої моделі).
 - `PRACTICE_EMBED_MODEL` — `e5` (типово) або `bge`: модель ембедингів, кеші в них окремі.
 - `PRACTICE_DOCS` — `core` (вісімнадцять розділів навколо `sec-object-type`) або `full` (уся специфікація,

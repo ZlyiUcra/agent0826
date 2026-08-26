@@ -109,6 +109,20 @@
   ```
   .venv/bin/python -m practice.challenges.overlap
   ```
+- Сховище фрагментів у Qdrant ($0). Правило вибору сховища, згода на заливання, опис колекцій і те, що
+  друкує кожен прапорець, — у `STORAGE.md`.
+  ```
+  docker compose up -d                                            # підняти базу, з кореня репозиторію
+  .venv/bin/python -m practice.challenges.qdrant_store --info     # що зараз у колекції
+  .venv/bin/python -m practice.challenges.qdrant_store --check    # звірити видачу з матрицею .npy
+  ```
+- Уся специфікація замість вісімнадцяти розділів ($0, потрібна лише мережа): завантажує відсутні розділи
+  в `practice/docs-full/`, наявних не чіпає. У виводі — рядок на розділ; `--list` показує перелік без
+  завантаження.
+  ```
+  .venv/bin/python -m practice.challenges.spec_download --list
+  .venv/bin/python -m practice.challenges.spec_download
+  ```
 - Перелік п'яти запитів виміру і прапорців ($0):
   ```
   .venv/bin/python -m practice.base.system --list
