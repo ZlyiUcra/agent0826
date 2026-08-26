@@ -29,7 +29,10 @@
     python -m practice.base.system --confirm      # підтвердити передачу людині, $0
     python -m practice.base.system --list         # перелік сценаріїв, $0
     прапорці: --lexical (пошук по словах), --rewrite (переписування бідного
-    запиту), --live (живий сайт для EXOTIC, потребує challenges/live_fetch.py)
+    запиту), --live (живий сайт для EXOTIC, потребує challenges/live_fetch.py),
+    --fast (спеціалісти, субагент і критик на дешевій моделі каскаду),
+    --drop request_handoff (інструмент прибрано зі списку GENERAL — необов'язковий
+    чекбокс другої картки, див. context/drop.py)
 """
 
 import json
@@ -39,11 +42,13 @@ import re
 import sys
 import time
 
-from config import MAX_TURNS, MODEL, MODEL_FAST
+from config import MAX_TURNS, MODEL_FAST
+from core import agent as course_agent
 from core import cost
 from core.agent import USAGE, reset_usage, run_agent
 
 from practice.base import critic, team
+from practice.common import nform
 from practice.base.queries import QUERIES
 
 OUT = pathlib.Path(__file__).resolve().parent.parent / "out"
@@ -221,7 +226,7 @@ def run_system(query: str, live: bool = False) -> dict:
     routed, raw = route(query)
 
     def _run(r: str) -> dict:
-        out = run_agent(system=team.PROMPTS[r] + (addon if r == "EXOTIC" else ""),
+        out = run_agent(system=team.prompt_for_route(r) + (addon if r == "EXOTIC" else ""),
                         tools=team.tools_for_route(
                             r, extra if r == "EXOTIC" else None),
                         query=query)
@@ -297,7 +302,7 @@ def report(result: dict, query: str) -> None:
         print(f"    {line}")
 
     c = cost.usd(USAGE["by_model"])
-    print(f"  вартість:     ${c:.4f}  ({USAGE['calls']} викликів, "
+    print(f"  вартість:     ${c:.4f}  ({USAGE['calls']} {nform(USAGE['calls'], 'виклик', 'виклики', 'викликів')}, "
           f"{USAGE['in']} in / {USAGE['out']} out)")
 
 
@@ -337,14 +342,24 @@ def main(argv: list[str]) -> int:
     if "--rewrite" in argv:
         os.environ["PRACTICE_REWRITE"] = "1"
     live = "--live" in argv
+    # Значення після --drop — імена інструментів, не запит.
+    dropped_arg = None
+    if "--drop" in argv:
+        dropped_arg = argv[argv.index("--drop") + 1]
+        os.environ[team.DROP_ENV] = dropped_arg
+    fast = "--fast" in argv
+    if fast:
+        team.use_fast_model()
 
-    positional = [a for a in argv if not a.startswith("-")]
+    positional = [a for a in argv if not a.startswith("-") and a != dropped_arg]
     raw = positional[0] if positional else "attrs"
     scenario = raw if raw in QUERIES else "custom"
     query = QUERIES[raw]["query"] if raw in QUERIES else raw
 
-    print(f"── Практика М4 · система · сценарій: {scenario} · {MODEL} + "
-          f"{MODEL_FAST} · MAX_TURNS={MAX_TURNS} ──")
+    dropped = sorted(team.dropped_tools())
+    print(f"── Практика М4 · система · сценарій: {scenario} · {course_agent.MODEL} + "
+          f"{MODEL_FAST} · MAX_TURNS={MAX_TURNS}"
+          + (f" · без {', '.join(dropped)}" if dropped else "") + " ──")
 
     team.register()
     started = time.time()
@@ -353,11 +368,21 @@ def main(argv: list[str]) -> int:
     result.update(scenario=scenario, query=query,
                   pipeline_sec=round(time.time() - started, 2),
                   cost_usd=cost.usd(USAGE["by_model"]),
-                  cost_breakdown=cost.breakdown(USAGE["by_model"]))
+                  cost_breakdown=cost.breakdown(USAGE["by_model"]),
+                  model=course_agent.MODEL, dropped=dropped)
     report(result, query)
+    # Штатний прогін зберігається під ключем system:<сценарій>, як і раніше.
+    # Прогін з --fast або --drop — під власним префіксом, щоб не лягти поверх
+    # базового запису; довільний запит у такому прогоні теж зберігається, з
+    # датою в ключі, щоб не перекрити попередній довільний.
+    prefix = "system" + ("-fast" if fast else "") + ("-drop" if dropped else "")
     if scenario != "custom":
-        save_result(f"system:{scenario}", result)
+        save_result(f"{prefix}:{scenario}", result)
         print(f"  збережено:    {RESULTS}")
+    elif prefix != "system":
+        key = f"{prefix}:custom-{time.strftime('%Y%m%d-%H%M%S')}"
+        save_result(key, result)
+        print(f"  збережено:    {RESULTS} під ключем {key}")
     print()
     return 0
 

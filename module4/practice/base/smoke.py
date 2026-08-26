@@ -73,6 +73,20 @@ def main(argv: list[str]) -> int:
     gen = [t["name"] for t in team.tools_for_route(team.GENERAL)]
     check("GENERAL: субагент і запит на передачу, БЕЗ прямого пошуку",
           gen == [team.RESEARCH_TOOL, team.REQUEST_TOOL])
+    # Перемикач другої картки: інструмент зникає і зі списку, і з промпта;
+    # без перемикача обидва на місці.
+    gone = [t["name"] for t in team.tools_for_route(team.GENERAL, drop={team.REQUEST_TOOL})]
+    check("--drop request_handoff: GENERAL лишається із самим субагентом, промпт інструмент не називає",
+          gone == [team.RESEARCH_TOOL]
+          and team.REQUEST_TOOL not in team.prompt_for_route(team.GENERAL, {team.REQUEST_TOOL})
+          and team.REQUEST_TOOL in team.prompt_for_route(team.GENERAL, set()))
+    import os as _os
+    _os.environ[team.DROP_ENV] = team.REQUEST_TOOL
+    via_env = [t["name"] for t in team.tools_for_route(team.GENERAL)]
+    del _os.environ[team.DROP_ENV]
+    check("PRACTICE_DROP_TOOLS діє без аргументів і знімається разом зі змінною",
+          via_env == [team.RESEARCH_TOOL]
+          and [t["name"] for t in team.tools_for_route(team.GENERAL)] == gen)
     all_schemas = [t["name"] for f in list(team.FAMILIES) + [team.GENERAL]
                    for t in team.tools_for_route(f)]
     check("fetch_spec відсутній у схемах без --live",
@@ -207,7 +221,8 @@ def main(argv: list[str]) -> int:
             idx = team.index_for(fam)
             paths.add(idx.cache_path)
             src = "з кеша" if idx.from_cache else "порахований"
-            print(f"    {fam:8} {len(idx.passages):3} фрагментів, {src}: "
+            from practice.common import nform
+            print(f"    {fam:8} {len(idx.passages):3} {nform(len(idx.passages), 'фрагмент', 'фрагменти', 'фрагментів')}, {src}: "
                   f"{idx.cache_path.name}")
         check("у кожної підмножини свій файл кеша", len(paths) == 4)
 

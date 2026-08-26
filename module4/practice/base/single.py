@@ -28,6 +28,7 @@ from core import cost
 from core.agent import USAGE, reset_usage, run_agent
 
 from practice.base import critic, team
+from practice.common import nform
 from practice.base.queries import QUERIES
 
 OUT = pathlib.Path(__file__).resolve().parent.parent / "out"
@@ -68,7 +69,7 @@ def report(result: dict, query: str) -> None:
     for line in result["answer"].splitlines():
         print(f"    {line}")
     c = cost.usd(USAGE["by_model"])
-    print(f"  вартість:     ${c:.4f}  ({USAGE['calls']} викликів, "
+    print(f"  вартість:     ${c:.4f}  ({USAGE['calls']} {nform(USAGE['calls'], 'виклик', 'виклики', 'викликів')}, "
           f"{USAGE['in']} in / {USAGE['out']} out)")
 
 

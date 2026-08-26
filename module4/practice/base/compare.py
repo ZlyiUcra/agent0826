@@ -22,7 +22,8 @@
 модель. Один прогін показує порядок чисел, а не точку.
 
     python -m practice.base.compare               # усі п'ять запитів, обидві сторони
-    прапорці: --lexical, --rewrite, --live — ті самі, що в base/system.py
+    прапорці: --lexical, --rewrite, --live, --fast, --drop — ті самі, що в
+    base/system.py; --fast переводить ОБИДВІ сторони на дешеву модель
 """
 
 import json
@@ -31,11 +32,13 @@ import pathlib
 import sys
 import time
 
-from config import MAX_TURNS, MODEL, MODEL_FAST
+from config import MAX_TURNS, MODEL_FAST
+from core import agent as course_agent
 from core import cost
 from core.agent import USAGE, reset_usage
 
 from practice.base import single, system, team
+from practice.common import nform
 from practice.base.queries import QUERIES
 
 OUT = pathlib.Path(__file__).resolve().parent.parent / "out"
@@ -81,15 +84,21 @@ def main(argv: list[str]) -> int:
     if "--rewrite" in argv:
         os.environ["PRACTICE_REWRITE"] = "1"
     live = "--live" in argv
+    if "--drop" in argv:
+        os.environ[team.DROP_ENV] = argv[argv.index("--drop") + 1]
+    if "--fast" in argv:
+        team.use_fast_model()
+    dropped = sorted(team.dropped_tools())
 
-    print(f"── Практика М4 · порівняння · {MODEL} + {MODEL_FAST} · "
-          f"MAX_TURNS={MAX_TURNS} ──")
+    print(f"── Практика М4 · порівняння · {course_agent.MODEL} + {MODEL_FAST} · "
+          f"MAX_TURNS={MAX_TURNS}"
+          + (f" · без {', '.join(dropped)}" if dropped else "") + " ──")
 
     team.register()
     print("  прогрів індексів (у вимір не входить)...")
     for family in list(team.FAMILIES) + [team.GENERAL]:
         idx = team.index_for(family)
-        print(f"    {family:8} {len(idx.passages)} фрагментів")
+        print(f"    {family:8} {len(idx.passages)} {nform(len(idx.passages), 'фрагмент', 'фрагменти', 'фрагментів')}")
     # Прогрів індексів вантажить лише кеші векторів; сама модель ембедингів
     # підіймається при ПЕРШОМУ запитному ембедингу — і в прогоні 2026-08-25 це
     # коштувало першому виміряному прогону зайві ~2 хвилини стіни. Тому модель
@@ -137,9 +146,10 @@ def main(argv: list[str]) -> int:
     stamp = time.strftime("%Y%m%d-%H%M%S")
     path = OUT / f"compare-{stamp}.json"
     path.write_text(json.dumps(
-        {"model": MODEL, "model_fast": MODEL_FAST,
+        {"model": course_agent.MODEL, "model_fast": MODEL_FAST,
          "retriever": os.getenv("PRACTICE_RETRIEVER", "vector"),
          "rewrite": os.getenv("PRACTICE_REWRITE", "0"), "live": live,
+         "dropped": dropped,
          "total_sec": total_sec, "records": records},
         ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"  збережено:    {path} (щоразу новий файл, попередні прогони цілі)")

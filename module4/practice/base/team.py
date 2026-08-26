@@ -483,29 +483,83 @@ PROMPTS = {
         "Boolean, Symbol, Number and String constructors and their prototypes. "
         "Your search tool covers only those sections; questions outside them are "
         "not yours to answer." + _RULES),
-    GENERAL: (
-        "You coordinate research over excerpts of the ECMAScript specification. "
-        "You have no search of your own: delegate the draft work to the "
-        "research_topic tool, one self-contained topic per call — a question with "
-        "several parts means several calls. Compose your answer strictly from the "
-        "summaries the tool returns, keeping their citations. If every research "
-        "call comes back empty, or what came back does not actually answer the "
-        "question, do NOT compose an answer of your own: call request_handoff "
-        "first. It only ANNOUNCES the handover, so after calling it tell the "
-        "user what is about to happen and that it waits for their "
-        "confirmation." + _RULES),
+    GENERAL: None,  # складається нижче з _GENERAL_HEAD і хвоста
 }
 
+_GENERAL_HEAD = (
+    "You coordinate research over excerpts of the ECMAScript specification. "
+    "You have no search of your own: delegate the draft work to the "
+    "research_topic tool, one self-contained topic per call — a question with "
+    "several parts means several calls. Compose your answer strictly from the "
+    "summaries the tool returns, keeping their citations. If every research "
+    "call comes back empty, or what came back does not actually answer the "
+    "question, do NOT compose an answer of your own: ")
 
-def tools_for_route(route: str, extra: list | None = None) -> list:
+# Хвіст із request_handoff — штатний. Хвіст без нього — для перемикача
+# --drop request_handoff: інструмент зі списку зник, і промпт не має його
+# називати, інакше модель кличе те, чого немає, і прогін падає як tool_error.
+# Рішення про людину в обох випадках ухвалює decide() у base/system.py за
+# ознаками результату; різниця лише в тому, чи модель може попросити паузу сама.
+_GENERAL_REQUEST_TAIL = (
+    "call request_handoff first. It only ANNOUNCES the handover, so after "
+    "calling it tell the user what is about to happen and that it waits for "
+    "their confirmation.")
+_GENERAL_PLAIN_TAIL = (
+    "say plainly that the available excerpts do not answer it and stop there. "
+    "Whether a human colleague takes the question over is decided outside "
+    "this conversation; do not promise or announce it.")
+
+PROMPTS[GENERAL] = _GENERAL_HEAD + _GENERAL_REQUEST_TAIL + _RULES
+
+# Перемикач «прибрати інструмент»: імена через кому у змінній оточення, як
+# PRACTICE_RETRIEVER і PRACTICE_REWRITE. Ставлять його прапорці --drop у
+# base/system.py, base/compare.py і context/drop.py.
+DROP_ENV = "PRACTICE_DROP_TOOLS"
+
+
+def dropped_tools(drop: set | None = None) -> set:
+    """Імена інструментів, прибраних зі списків. Явний аргумент має перевагу
+    над змінною оточення; None означає «як в оточенні»."""
+    if drop is not None:
+        return set(drop)
+    raw = os.environ.get(DROP_ENV, "")
+    return {name.strip() for name in raw.split(",") if name.strip()}
+
+
+def prompt_for_route(route: str, drop: set | None = None) -> str:
+    """Промпт маршруту з урахуванням прибраних інструментів. Поки що різниться
+    лише GENERAL: без request_handoff він дістає хвіст, який інструмент не
+    називає."""
+    if route == GENERAL and REQUEST_TOOL in dropped_tools(drop):
+        return _GENERAL_HEAD + _GENERAL_PLAIN_TAIL + _RULES
+    return PROMPTS[route]
+
+
+def use_fast_model() -> str:
+    """Переводить курсовий run_agent (і ask(fast=False) — критика) на дешеву
+    модель каскаду: core.agent читає MODEL зі свого простору імен у момент
+    виклику, тож підміна діє на спеціалістів, субагента і критика без правки
+    курсового файла. Роутер і так на MODEL_FAST. Ціна рахується правильно сама:
+    PRICES у core/cost.py шукає за рядком моделі. Повертає ім'я моделі."""
+    from config import MODEL_FAST
+    from core import agent as course_agent
+    course_agent.MODEL = MODEL_FAST
+    return course_agent.MODEL
+
+
+def tools_for_route(route: str, extra: list | None = None,
+                    drop: set | None = None) -> list:
     """Список схем для run_agent(tools=...). Курсові інструменти сюди не входять:
     поштовий бекенд до специфікації ECMAScript стосунку не має.
 
     `extra` — місце для схем челенджів (fetch_spec під --live); базова розкладка
-    прав від цього не змінюється.
+    прав від цього не змінюється. `drop` — імена, які прибрати (None — як у
+    змінній оточення PRACTICE_DROP_TOOLS); список лише звужується, ніколи не
+    ширшає.
     """
     if route == GENERAL:
         base = [SCHEMAS[RESEARCH_TOOL], SCHEMAS[REQUEST_TOOL]]
     else:
         base = [SCHEMAS[TOOL_NAMES[route]]]
-    return base + list(extra or [])
+    gone = dropped_tools(drop)
+    return [t for t in base if t["name"] not in gone] + list(extra or [])
