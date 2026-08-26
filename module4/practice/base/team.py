@@ -111,6 +111,26 @@ TOOL_NAMES = {
 }
 
 RESEARCH_TOOL = "research_topic"
+# Рядок, яким спеціаліст віддає питання, що виходить за його розділи;
+# base/system.py ловить його детерміновано і повторює запит через GENERAL.
+HANDOVER_LINE = "HANDOVER: GENERAL"
+# Бюджет субагента: досліджень на одне питання і ходів на одне дослідження.
+# Без меж дешева модель робила дев'ять досліджень по 10-14 пошуків на одну
+# задачу (55 викликів, $0.32) — і половина тем дублювала одна одну.
+# Ходів — чотири: дешева модель робить по 2-3 пошуки за хід, і за три ходи
+# жодного разу не дійшла до підсумку (усі чотири дослідження прогону 19:53
+# скінчилися turns_exhausted). Промпт велить шукати не більше двох раундів,
+# четвертий хід — запас; якщо підсумку все одно немає, його замінюють уривки.
+RESEARCH_BUDGET = 4
+RESEARCH_TURNS = 4
+EXCERPT_LIMIT = 6        # уривків у замінному підсумку
+EXCERPT_CHARS = 500      # знаків з кожного уривка
+_research_used = {"n": 0}
+
+
+def reset_research() -> None:
+    """Новий лічильник досліджень — на початку кожного прогону маршруту."""
+    _research_used["n"] = 0
 HANDOFF_TOOL = "handoff_to_human"
 REQUEST_TOOL = "request_handoff"
 
@@ -150,6 +170,14 @@ def passages_for(family: str):
         return all_passages()
     numbers = FAMILIES[family]
     return [p for p in all_passages() if doc_number(p.doc_id) in numbers]
+
+
+def warm_search(route: str = GENERAL) -> None:
+    """Готує пошук маршруту до першого запиту: збирає індекс і робить один
+    пробний пошук, який завантажує модель ембедингів. Без цього перший
+    справжній пошук мовчить хвилину-дві на завантаженні моделі — і ця тиша
+    видається за роздуми над реплікою. Нуль звернень до моделей Anthropic."""
+    index_for(route).scores("ECMAScript", 1)
 
 
 _RETRIEVERS = {"vector": VectorIndex, "lexical": LexicalIndex}
@@ -363,7 +391,9 @@ def handoff_to_human(question: str, reason: str) -> dict:
 RESEARCH_PROMPT = (
     "You are a research assistant working over excerpts of the ECMAScript "
     "specification. Answer the research topic you were given using ONLY the "
-    "search_docs tool; search as many times as the topic needs.\n"
+    "search_docs tool. Search in at most two rounds (several queries in one "
+    "round are fine); the reply after them MUST be the summary. If something "
+    "is still missing, say what is missing instead of searching again.\n"
     "Return a compact summary of what the excerpts actually say, in English, "
     "citing every claim with the id shown in brackets, e.g. "
     "[18-string-objects#22.1.3.19], with ids kept exactly as returned.\n"
@@ -381,14 +411,63 @@ def research_topic(topic: str) -> dict:
 
     Імпорт core.agent захований у функцію, щоб безкоштовні перевірки smoke
     працювали без ключа в .env (патерн із common/rewrite.py).
+
+    Бюджет: після RESEARCH_BUDGET досліджень на одне питання виклик
+    відхиляється без звернення до моделі — з поясненням, яке GENERAL читає як
+    «складай з того, що є»; кожне дослідження має не більше RESEARCH_TURNS
+    ходів. Лічильник скидає reset_research() на початку прогону маршруту.
     """
+    _research_used["n"] += 1
+    if _research_used["n"] > RESEARCH_BUDGET:
+        return {"summary": (f"Research budget for this question is spent: "
+                            f"{RESEARCH_BUDGET} topics were already researched. "
+                            "Compose the answer from the summaries you already "
+                            "have and do not call research_topic again."),
+                "outcome": "budget_spent", "searches": 0,
+                "found_anything": False, "budget_spent": True}
+
+    from core import agent as course_agent
     from core.agent import run_agent
 
-    result = run_agent(system=RESEARCH_PROMPT,
-                       tools=[SCHEMAS[TOOL_NAMES[GENERAL]]], query=topic)
+    # Ліміт ходів субагента — та сама підміна змінної модуля, що в
+    # use_fast_model(): run_agent читає MAX_TURNS під час виклику.
+    saved = course_agent.MAX_TURNS
+    course_agent.MAX_TURNS = min(saved, RESEARCH_TURNS)
+    try:
+        result = run_agent(system=RESEARCH_PROMPT,
+                           tools=[SCHEMAS[TOOL_NAMES[GENERAL]]], query=topic)
+    finally:
+        course_agent.MAX_TURNS = saved
     found = any(step["output"].get("found") for step in result["trace"])
-    return {"summary": result["answer"], "outcome": result["outcome"],
-            "searches": len(result["trace"]), "found_anything": found}
+    summary, source = result["answer"], "model"
+    if result["outcome"] != "ok" and found:
+        # Субагент шукав, знайшов, але підсумку не написав: замість шаблонного
+        # «не вдалося завершити» GENERAL дістає самі уривки з ідентифікаторами.
+        summary, source = excerpt_summary(result["trace"]), "excerpts"
+    return {"summary": summary, "outcome": result["outcome"],
+            "searches": len(result["trace"]), "found_anything": found,
+            "summary_from": source}
+
+
+def excerpt_summary(trace: list) -> str:
+    """Замінний підсумок із траси субагента: перші EXCERPT_LIMIT різних уривків,
+    кожен з ідентифікатором у дужках, як їх цитує модель. Нуль звернень до
+    моделей; оплачені пошуки не пропадають."""
+    seen, lines = set(), []
+    for step in trace:
+        for p in step.get("output", {}).get("passages", []) or []:
+            if p["id"] in seen:
+                continue
+            seen.add(p["id"])
+            text = " ".join(p.get("text", "").split())[:EXCERPT_CHARS]
+            lines.append(f"[{p['id']}] {p.get('section', '')}: {text}")
+            if len(lines) >= EXCERPT_LIMIT:
+                break
+        if len(lines) >= EXCERPT_LIMIT:
+            break
+    head = ("The research assistant ran out of steps before summarising; these are "
+            "the excerpts it retrieved, verbatim, with their ids:\n")
+    return head + "\n".join(lines)
 
 
 def _load_requests(path: pathlib.Path) -> list:
@@ -482,6 +561,13 @@ _RULES = (
     "it, say so, name what the excerpts do cover, and point to "
     "https://tc39.es/ecma262/ where the whole specification is published. Do not "
     "answer from your own knowledge of JavaScript, do not guess.\n"
+    "2b. A programming task IS your subject whenever its solution rests on the "
+    "specification: write the code, rewrite the snippet, explain why a snippet "
+    "behaves as it does. Search for the sections the solution relies on first, "
+    "then propose the solution and justify every step of it with the ids those "
+    "sections came back with. Never refuse a task merely because it asks for "
+    "code; refuse only when the excerpts give you nothing to build the solution "
+    "on, and then say so as in 2a.\n"
     "3. Cite every claim with the id shown in brackets, e.g. "
     "[18-string-objects#22.1.3.19]. Keep ids exactly as returned: never translate, "
     "shorten or invent them.\n"
@@ -491,22 +577,34 @@ _RULES = (
     "5. Plain prose, no Markdown tables, no emoji."
 )
 
+# Спеціаліст бачить лише свої розділи. Питання ПРО специфікацію, що виходить
+# за них хоча б частиною (Promise у питанні до WRAPPERS), він не відповідає
+# наполовину і не відмовляє як чужій темі — віддає GENERAL одним рядком, який
+# base/system.py ловить детерміновано і повторює запит запасним маршрутом.
+_HANDOVER_TAIL = (
+    " If the question is about the specification but any part of it lies "
+    "outside those sections, do not answer it partially and do not treat it "
+    f"as a foreign subject: reply with exactly the line {HANDOVER_LINE} and "
+    "nothing else, and a colleague who sees the whole specification takes it "
+    "over. Questions from other fields (cooking, travel, prices) are not a "
+    "handover case: rule 2 below applies to them.")
+
 PROMPTS = {
     "OBJECT": (
         "You are the specialist for the ECMAScript Object type itself: property "
         "attributes, object internal methods and internal slots, their invariants, "
         "and ordinary objects. Your search tool covers only those sections; "
-        "questions outside them are not yours to answer." + _RULES),
+        "questions outside them are not yours to answer." + _HANDOVER_TAIL + _RULES),
     "EXOTIC": (
         "You are the specialist for ECMAScript exotic objects: bound functions, "
         "Array, String, Arguments, TypedArray, module namespaces, immutable "
         "prototypes, and Proxy. Your search tool covers only those sections; "
-        "questions outside them are not yours to answer." + _RULES),
+        "questions outside them are not yours to answer." + _HANDOVER_TAIL + _RULES),
     "WRAPPERS": (
         "You are the specialist for the ECMAScript wrapper objects: the Object, "
         "Boolean, Symbol, Number and String constructors and their prototypes. "
         "Your search tool covers only those sections; questions outside them are "
-        "not yours to answer." + _RULES),
+        "not yours to answer." + _HANDOVER_TAIL + _RULES),
     GENERAL: None,  # складається нижче з _GENERAL_HEAD і хвоста
 }
 
@@ -514,10 +612,14 @@ _GENERAL_HEAD = (
     "You coordinate research over excerpts of the ECMAScript specification. "
     "You have no search of your own: delegate the draft work to the "
     "research_topic tool, one self-contained topic per call — a question with "
-    "several parts means several calls. Compose your answer strictly from the "
-    "summaries the tool returns, keeping their citations. If every research "
-    "call comes back empty, or what came back does not actually answer the "
-    "question, do NOT compose an answer of your own: ")
+    "several parts means several calls, but at most four calls per question: "
+    "merge overlapping topics into one call, because a fifth call is refused. "
+    "Compose your answer strictly from the "
+    "summaries the tool returns, keeping their citations; when the question is "
+    "a programming task, the code you propose must follow from those summaries, "
+    "each step of it tied to a cited section. If every research call comes back "
+    "empty, or what came back does not actually answer the question, do NOT "
+    "compose an answer of your own: ")
 
 # Хвіст із request_handoff — штатний. Хвіст без нього — для перемикача
 # --drop request_handoff: інструмент зі списку зник, і промпт не має його

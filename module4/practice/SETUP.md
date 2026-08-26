@@ -9,7 +9,7 @@
 
 ```
 .venv/bin/python -m practice.base.system "Як Proxy перехоплює читання властивості?"   # своє питання системі, ~$0.02–0.35
-.venv/bin/python -m practice.base.smoke                                                # перевірка дизайну, 36 перевірок, $0
+.venv/bin/python -m practice.base.smoke                                                # перевірка дизайну, 41 перевірка, $0
 .venv/bin/python -m practice.base.compare                                              # вимір картки: п'ять запитів через обох, ~$1
 ```
 

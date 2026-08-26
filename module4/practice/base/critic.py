@@ -68,11 +68,16 @@ def check_citations(answer: str, trace: list) -> dict:
     """
     cited = cited_pids(answer) | {f"live:{a}" for a in cited_anchors(answer)}
     known = trace_pids(trace)
+    # Підрозділ, що повернувся частинами (…#27.5.4.1.2/1 і /2), процитований
+    # без суфікса частини, — не вигадка: його текст агент бачив. Частина, якої
+    # не повертали (/3), вигадкою лишається.
+    sections = {k.split("/", 1)[0] for k in known if "/" in k}
     found_anything = any(
         step.get("output", {}).get("found") or
         step.get("output", {}).get("found_anything")
         for step in trace)
-    return {"cited": sorted(cited), "fabricated": sorted(cited - known),
+    return {"cited": sorted(cited),
+            "fabricated": sorted(c for c in cited - known if c not in sections),
             "uncited": bool(found_anything and not cited),
             "found_anything": found_anything}
 

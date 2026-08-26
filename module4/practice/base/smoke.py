@@ -246,6 +246,42 @@ def main(argv: list[str]) -> int:
     check("пульс мовчить поза терміналом і малює в терміналі",
           quiet.getvalue() == "" and "виклик 1 з 8" in drawn and drawn.endswith("\r"))
 
+    # 9в. Звірка посилань, бюджет досліджень і передача від часткового спеціаліста.
+    from practice.base import system as system_mod
+    parts_trace = [{"tool": "search_docs", "output": {"found": 2, "passages": [
+        {"id": "27-control-abstraction-objects#27.5.4.1.2/1"},
+        {"id": "27-control-abstraction-objects#27.5.4.1.2/2"}]}}]
+    verdict = critic.check_citations(
+        "see [27-control-abstraction-objects#27.5.4.1.2] and "
+        "[27-control-abstraction-objects#27.5.4.1.2/3]", parts_trace)
+    check("підрозділ без суфікса частини — відомий, частина, якої не було, — вигадка",
+          verdict["fabricated"] == ["27-control-abstraction-objects#27.5.4.1.2/3"])
+    team.reset_research()
+    team._research_used["n"] = team.RESEARCH_BUDGET
+    refused = team.research_topic("anything")
+    team.reset_research()
+    check("дослідження понад бюджет відхиляється без виклику моделі",
+          refused.get("budget_spent") is True and not refused["found_anything"])
+    excerpts = team.excerpt_summary([
+        {"output": {"found": 2, "passages": [
+            {"id": "a#1", "section": "1 A", "text": "first  text"},
+            {"id": "a#2", "section": "2 B", "text": "second"}]}},
+        {"output": {"found": 1, "passages": [{"id": "a#1", "section": "1 A", "text": "dup"}]}}])
+    check("замінний підсумок збирає різні уривки з ідентифікаторами",
+          excerpts.count("[a#1]") == 1 and "[a#2] 2 B: second" in excerpts
+          and "first text" in excerpts)
+    hit = [{"output": {"found": 2, "passages": [{"id": "x#1"}]}}]
+    miss = [{"output": {"found": 0}}]
+    check("запасний маршрут: рядок HANDOVER, відповідь без пошуку, порожній пошук",
+          system_mod._fallback_why({"answer": "HANDOVER: GENERAL", "trace": hit}) == "handover"
+          and system_mod._fallback_why({"answer": "  handover: general \n", "trace": hit}) == "handover"
+          and system_mod._fallback_why({"answer": "Порадьте колезі…", "trace": []}) == "no_search"
+          and system_mod._fallback_why({"answer": "нічого", "trace": miss}) == "empty"
+          and system_mod._fallback_why({"answer": "GetIterator [x#1]", "trace": hit}) is None)
+    check("промпти спеціалістів називають рядок передачі, GENERAL — ні",
+          all(team.HANDOVER_LINE in team.PROMPTS[r] for r in ("OBJECT", "EXOTIC", "WRAPPERS"))
+          and team.HANDOVER_LINE not in team.PROMPTS[team.GENERAL])
+
     # 10. За бажанням — прогрів індексів (модель ембедингів, хвилини на CPU).
     if "--warm" in sys.argv:
         print("  прогрів векторних індексів...")

@@ -56,7 +56,10 @@
 з клавіатури; після Enter у тому самому рядку б'ється пульс «думає · 7 с ·
 виклик 2 з 8 · пошук: «…»» (common/pulse.py) — стільки секунд минуло, який за
 рахунком виклик моделі йде і що саме шукається; коли відповідь готова, пульс
-стирається і вона друкується після «агент ›». Першу репліку можна дати прямо
+стирається і вона друкується після «агент ›». Пульс накриває всю репліку — від
+пригадування з довгої пам'яті і виділення фактів до останнього виклику, — а
+модель ембедингів завантажується ще до першої репліки під власним пульсом
+«готує пошук · N с», щоб хвилина її завантаження не видавалася за роздуми. Першу репліку можна дати прямо
 в команді — --chat "…" — і тоді бесіда починається з неї, а далі йде з
 клавіатури.
 
@@ -206,10 +209,11 @@ def run(script_name: str = "long", strategy_name: str = "full", cache: bool = Tr
     if verbose:
         print(f"── Розмова · {tag} · {MODEL_FAST} ──")
         print(f"  пам'ять, що переживає розмову: {where}")
-    # Індекс пошуку збирається тут, а не на першому пошуку: рядок про сховище
-    # має лягти під шапку, а не поверх пульсу, і завантаження моделі ембедингів
-    # не має видаватися за роздуми над першою реплікою.
-    team.index_for(team.GENERAL)
+    # Пошук готується тут, а не на першій репліці: рядок про сховище має лягти
+    # під шапку, а завантаження моделі ембедингів (хвилина-дві на цьому диску)
+    # — іти під власним пульсом, а не видаватися за роздуми над реплікою.
+    with Pulse("готує пошук"):
+        team.warm_search(team.GENERAL)
 
     messages: list = []
     answers, searches, rows = [], [], []
@@ -220,7 +224,8 @@ def run(script_name: str = "long", strategy_name: str = "full", cache: bool = Tr
             # Пригадування — за першою реплікою: у сценарії вона відома наперед,
             # у живій бесіді — лише тепер.
             if store is not None:
-                recalled = store.recall(text)
+                with Pulse("думає · пригадує з довгої пам'яті"):
+                    recalled = store.recall(text)
                 long_block = memory.block(recalled)
             if verbose:
                 if long_block:
@@ -228,39 +233,40 @@ def run(script_name: str = "long", strategy_name: str = "full", cache: bool = Tr
                     for line in long_block.splitlines():
                         print(f"    {line}")
                 print()
-        new_facts = session.absorb(text, ledger) if use_memory else []
-        volatile = _volatile(session, use_memory)
-        messages.append({"role": "user",
-                         "content": text if order == "wrong" else f"{text}\n\n({volatile})"})
-        turn_searches, turn_rows, sent, system_blocks = [], [], messages, []
         with Pulse("думає") as pulse:
-          for k in range(MAX_TURNS):
-            pulse.note(f"виклик {k + 1} з {MAX_TURNS}")
-            sent = strategy.shape(messages, last_total)
-            system_blocks = _system(order, long_block,
-                                    _volatile(session, use_memory) if order == "wrong" else "",
-                                    cache)
-            resp = ledger.create(model=MODEL_FAST, max_tokens=MAX_TOKENS,
-                                 system=system_blocks, tools=TOOLS,
-                                 messages=_mark_last(sent) if cache else sent)
-            turn_rows.append(ledger.rows[-1])
-            messages.append({"role": "assistant", "content": _blocks(resp.content)})
-            if resp.stop_reason != "tool_use":
-                break
-            results = []
-            for b in resp.content:
-                if b.type != "tool_use":
-                    continue
-                pulse.note(f"пошук: «{b.input.get('query', '')}»")
-                out = dispatch(b.name, b.input)
-                session.note_hits(out)
-                turn_searches.append({"query": b.input.get("query", ""),
-                                      "found": out.get("found", 0),
-                                      "ids": [p["id"] for p in out.get("passages", [])]})
-                results.append({"type": "tool_result", "tool_use_id": b.id,
-                                "content": json.dumps(out, ensure_ascii=False),
-                                "is_error": "error" in out})
-            messages.append({"role": "user", "content": results})
+            pulse.note("виділяє факти з репліки")
+            new_facts = session.absorb(text, ledger) if use_memory else []
+            volatile = _volatile(session, use_memory)
+            messages.append({"role": "user",
+                             "content": text if order == "wrong" else f"{text}\n\n({volatile})"})
+            turn_searches, turn_rows, sent, system_blocks = [], [], messages, []
+            for k in range(MAX_TURNS):
+                pulse.note(f"виклик {k + 1} з {MAX_TURNS}")
+                sent = strategy.shape(messages, last_total)
+                system_blocks = _system(order, long_block,
+                                        _volatile(session, use_memory) if order == "wrong" else "",
+                                        cache)
+                resp = ledger.create(model=MODEL_FAST, max_tokens=MAX_TOKENS,
+                                     system=system_blocks, tools=TOOLS,
+                                     messages=_mark_last(sent) if cache else sent)
+                turn_rows.append(ledger.rows[-1])
+                messages.append({"role": "assistant", "content": _blocks(resp.content)})
+                if resp.stop_reason != "tool_use":
+                    break
+                results = []
+                for b in resp.content:
+                    if b.type != "tool_use":
+                        continue
+                    pulse.note(f"пошук: «{b.input.get('query', '')}»")
+                    out = dispatch(b.name, b.input)
+                    session.note_hits(out)
+                    turn_searches.append({"query": b.input.get("query", ""),
+                                          "found": out.get("found", 0),
+                                          "ids": [p["id"] for p in out.get("passages", [])]})
+                    results.append({"type": "tool_result", "tool_use_id": b.id,
+                                    "content": json.dumps(out, ensure_ascii=False),
+                                    "is_error": "error" in out})
+                messages.append({"role": "user", "content": results})
 
         answer = (_answer(messages[-1]["content"]) if messages[-1]["role"] == "assistant"
                   else scripts.NO_ANSWER)

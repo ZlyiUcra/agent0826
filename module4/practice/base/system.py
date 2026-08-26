@@ -79,7 +79,8 @@ ROUTER_PROMPT = (
     "з них.\n"
     "Питання про один метод одного об'єкта — тема цього об'єкта, не GENERAL. "
     "Питання, де взаємодіють об'єкти з РІЗНИХ тем, — GENERAL. "
-    "Відповідай одним словом."
+    "Відповідай рівно одним словом із чотирьох — OBJECT, EXOTIC, WRAPPERS або "
+    "GENERAL — і нічим іншим."
 )
 
 # Причини передачі людині: код → (українською, англійською).
@@ -117,6 +118,32 @@ def _all_searches_empty(result: dict) -> bool:
     trace = result.get("trace", [])
     return bool(trace) and all(
         not step.get("output", {}).get("found") for step in trace)
+
+
+def _handover_requested(result: dict) -> bool:
+    """Спеціаліст віддав питання сам: у відповіді є рядок HANDOVER: GENERAL.
+    Це єдине місце, де текст відповіді щось вирішує, і рядок тут — не фраза,
+    а протокол, заданий промптом дослівно."""
+    answer = result.get("answer") or ""
+    return any(ln.strip().upper() == team.HANDOVER_LINE
+               for ln in answer.splitlines())
+
+
+def _fallback_why(result: dict) -> str | None:
+    """Чому спеціаліст не закрив питання і його треба повторити через GENERAL.
+
+    «handover» — у відповіді є рядок протоколу; «no_search» — спеціаліст не
+    зробив жодного пошуку, а відповідь без пошуку не з фрагментів (правило 1),
+    тож це передача незалежно від слів: дешева модель замість рядка протоколу
+    пише прозою «порадьте колезі»; «empty» — шукав, нічого не знайшов.
+    """
+    if _handover_requested(result):
+        return "handover"
+    if not result.get("trace"):
+        return "no_search"
+    if _all_searches_empty(result):
+        return "empty"
+    return None
 
 
 def _handoff_called(trace: list) -> bool:
@@ -170,6 +197,9 @@ def apply_handoff(result: dict, query: str, reason: str) -> dict:
     Обидві гілки користуються тими самими заглушками, що й модель, — заявки
     і запити йдуть в одні журнали."""
     uk, en = REASONS[reason]
+    # Підмінена відповідь лишається в записі: за неї заплачено, і людині, яка
+    # братиме питання, вона потрібна як чернетка.
+    result["draft"] = result.get("answer", "")
     if reason in PAUSED_REASONS:
         req = team.request_handoff(query, uk)
         result["handoff"] = {"request_id": req["request_id"], "reason": reason,
@@ -233,6 +263,7 @@ def run_system(query: str, live: bool = False) -> dict:
         routed, raw = route(query)
 
     def _run(r: str, label: str) -> dict:
+        team.reset_research()
         with Pulse(f"думає · {label}"):
             out = run_agent(system=team.prompt_for_route(r) + (addon if r == "EXOTIC" else ""),
                             tools=team.tools_for_route(
@@ -242,15 +273,19 @@ def run_system(query: str, live: bool = False) -> dict:
         out["router_raw"] = raw
         return out
 
-    # Індекс маршруту збирається до пульсу: рядок про сховище має вийти окремим
-    # рядком, а не лягти поверх «думає · …».
-    team.index_for(routed)
+    # Пошук готується до пульсу спеціаліста: рядок про сховище має вийти окремим
+    # рядком, а завантаження моделі ембедингів — не видаватися за роздуми.
+    with Pulse("готує пошук"):
+        team.warm_search(routed)
     result = _run(routed, f"спеціаліст {routed}")
 
-    if routed != team.GENERAL and _all_searches_empty(result):
-        team.index_for(team.GENERAL)
+    why = _fallback_why(result) if routed != team.GENERAL else None
+    if why:
+        with Pulse("готує пошук"):
+            team.warm_search(team.GENERAL)
         retry = _run(team.GENERAL, "запасний маршрут GENERAL")
         retry["fallback_from"] = routed
+        retry["fallback_why"] = why
         result = retry
 
     if result["routed_to"] == "WRAPPERS":
@@ -271,7 +306,9 @@ def run_system(query: str, live: bool = False) -> dict:
 def report(result: dict, query: str) -> None:
     routed = result["routed_to"]
     if result.get("fallback_from"):
-        routed = f"{result['fallback_from']} → порожньо → {routed}"
+        why = {"handover": "передав сам", "no_search": "без пошуку"}.get(
+            result.get("fallback_why"), "порожньо")
+        routed = f"{result['fallback_from']} → {why} → {routed}"
     print(f"  запит:        «{query}»")
     print(f"  маршрут:      {routed}  (роутер відповів: {result.get('router_raw', '?')})")
     print(f"  outcome:      {result['outcome']}  ·  кроків: {result.get('turns', '—')}"
@@ -309,6 +346,10 @@ def report(result: dict, query: str) -> None:
               f"{'було' if c['revised'] else 'не знадобилося'}")
     if result.get("handoff"):
         print(f"  передача:     {result['handoff']}")
+    if result.get("draft") and result["draft"] != result["answer"]:
+        print("  чернетка до передачі:")
+        for line in result["draft"].splitlines():
+            print(f"    {line}")
 
     print("  відповідь:")
     for line in result["answer"].splitlines():
