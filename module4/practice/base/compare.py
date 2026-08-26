@@ -90,6 +90,14 @@ def main(argv: list[str]) -> int:
     for family in list(team.FAMILIES) + [team.GENERAL]:
         idx = team.index_for(family)
         print(f"    {family:8} {len(idx.passages)} фрагментів")
+    # Прогрів індексів вантажить лише кеші векторів; сама модель ембедингів
+    # підіймається при ПЕРШОМУ запитному ембедингу — і в прогоні 2026-08-25 це
+    # коштувало першому виміряному прогону зайві ~2 хвилини стіни. Тому модель
+    # прогрівається тут одним неробочим запитом, до секундомірів.
+    if os.getenv("PRACTICE_RETRIEVER", "vector") == "vector":
+        from practice.common.vectors import embed
+        embed(["warm-up"], kind="query")
+        print("  модель ембедингів піднято до секундомірів")
 
     total_started = time.time()
     records = []

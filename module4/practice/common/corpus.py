@@ -41,10 +41,24 @@ https://tc39.es/ecma262/ один раз, вручну. Код їх тільки
 """
 
 import json
+import os
 import pathlib
 import re
 
-DOCS_DIR = pathlib.Path(__file__).resolve().parent.parent / "docs"
+# Два набори документів, і вони навмисно не змішуються. «core» — вісімнадцять
+# розділів навколо sec-object-type, ті самі, на яких зроблено всі виміри
+# практики. «full» — уся специфікація, вивантажена challenges/spec_download.py
+# у practice/docs-full/. Повна специфікація містить і розділи набору core, тому
+# в одній купі кожен такий фрагмент трапився б двічі під різними
+# ідентифікаторами, а числа, записані в README і CHECKLIST, перестали б
+# стосуватися того, що лежить у теці. Вибір — змінною PRACTICE_DOCS.
+DOC_SETS = {"core": "docs", "full": "docs-full"}
+DOC_SET = os.getenv("PRACTICE_DOCS", "core")
+if DOC_SET not in DOC_SETS:
+    raise SystemExit(f"Невідомий набір документів '{DOC_SET}'. "
+                     f"Доступні: {', '.join(sorted(DOC_SETS))}")
+
+DOCS_DIR = pathlib.Path(__file__).resolve().parent.parent / DOC_SETS[DOC_SET]
 
 # Межа розміру фрагмента. Її задає не смак, а вікно моделі ембедингів:
 # e5-small читає 512 токенів і мовчки відрізає все, що далі. Текст специфікації

@@ -29,18 +29,32 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 def main(argv: list[str]) -> int:
     from practice.base import critic, team
 
-    # 1. Родини покривають усі вісімнадцять документів, кожен рівно один раз.
-    numbers = sorted(n for fam in team.FAMILIES.values() for n in fam)
-    check("родини покривають документи 01–18 без перетинів",
-          numbers == list(range(1, 19)))
+    # 1. Родини не перетинаються. У наборі «core» вони до того ж покривають усі
+    # вісімнадцять документів; у «full» покривати всю специфікацію вони й не
+    # мусять — решта розділів дістається маршрутові GENERAL.
+    from practice.common.corpus import DOC_SET
 
-    # 2. Підмножини фрагментів складаються назад у повний набір.
+    numbers = sorted(n for fam in team.FAMILIES.values() for n in fam)
+    check(f"родини не перетинаються (набір {DOC_SET})",
+          len(numbers) == len(set(numbers)),
+          f"документи: {', '.join(f'{n:02d}' for n in numbers)}")
+    if DOC_SET == "core":
+        check("родини покривають документи 01–18 повністю",
+              numbers == list(range(1, 19)))
+
+    # 2. Підмножини фрагментів не перетинаються і складаються в повний набір
+    # (у «core») або в його частину (у «full»).
     full = team.all_passages()
     parts = [team.passages_for(f) for f in team.FAMILIES]
     pids = [p.pid for sub in parts for p in sub]
-    check("підмножини розбивають повний набір фрагментів",
-          sorted(pids) == sorted(p.pid for p in full),
-          f"{' + '.join(str(len(s)) for s in parts)} = {len(full)}")
+    known = {p.pid for p in full}
+    check("підмножини не перетинаються і лежать усередині набору",
+          len(pids) == len(set(pids)) and set(pids) <= known,
+          f"{' + '.join(str(len(s)) for s in parts)} з {len(full)}")
+    if DOC_SET == "core":
+        check("підмножини розбивають повний набір фрагментів",
+              sorted(pids) == sorted(known))
+    check("кожна родина непорожня", all(parts))
 
     # 3. Імена інструментів унікальні і не перетинаються з курсовими.
     names = list(team.PRACTICE_IMPL)
@@ -135,11 +149,31 @@ def main(argv: list[str]) -> int:
         ]
         ok = all(system.decide(dict(r)) == want for r, want in cases)
         check("тригери decide() дають очікувані причини", ok)
+        # Гілка паузи в конвеєрі: research_empty не передає, а ставить у чергу.
+        with tempfile.TemporaryDirectory() as tmp2:
+            saved = team.PENDING_FILE
+            team.PENDING_FILE = _pl.Path(tmp2) / "pending.json"
+            try:
+                r = system.apply_handoff(
+                    {"outcome": "ok"}, "Питання про борщ", "research_empty")
+                check("research_empty ставить запит у чергу, а не передає",
+                      r["handoff"].get("pending") is True
+                      and "--confirm" in r["answer"])
+                r2 = system.apply_handoff(
+                    {"outcome": "api_error"}, "any question", "api_error")
+                check("api_error передає одразу, без паузи",
+                      "ticket" in r2["handoff"]
+                      and not r2["handoff"].get("pending"))
+            finally:
+                team.PENDING_FILE = saved
         check("мова повідомлення про передачу йде за мовою запиту",
               system._ukrainian("Як працює replace?")
               and not system._ukrainian("How does replace work?"))
         for route in team.ROUTES:
             check(f"роутер-промпт називає {route}", route in system.ROUTER_PROMPT)
+        check("нерозпізнана відповідь роутера стає GENERAL",
+              system.normalize_route("КАВА") == team.GENERAL
+              and system.normalize_route("WRAPPERS") == "WRAPPERS")
 
     # 9. live_fetch: перевірка адрес і вирізання підрозділу — офлайн, без мережі.
     from practice.challenges import live_fetch as lf

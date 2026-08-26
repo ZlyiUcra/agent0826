@@ -62,3 +62,23 @@ practice/docs/ як .txt із трирядковою шапкою; поруч in
 `core`, `domain` шукаються від module4/. Установка середовища і повний перелік
 команд — у SETUP.md.
 """
+
+
+def _load_env() -> None:
+    """Підтягує module4/.env, щоб прогони практики бачили свої налаштування —
+    QDRANT_URL, PRACTICE_DOCS, PRACTICE_RETRIEVER.
+
+    Те саме робить config.py, але він вимагає ключа Anthropic і завершує процес,
+    коли ключа немає. Безкоштовним прогонам ключ не потрібен, а налаштування
+    потрібні, тож читання .env живе тут окремо. Значення, задані в оточенні,
+    сильніші за файл: load_dotenv наявних змінних не перезаписує.
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    import pathlib as _pathlib
+    load_dotenv(_pathlib.Path(__file__).resolve().parent.parent / ".env")
+
+
+_load_env()

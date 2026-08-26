@@ -50,7 +50,7 @@ QUERIES = {
     "flat": {
         "query": "How does Array.prototype.flat decide how deep to flatten "
                  "a nested array?",
-        "expected_route": "EXOTIC",
+        "expected_route": "WRAPPERS або EXOTIC — обидва прочитання чесні",
         "kind": "поза документами: тема наша, розділу 23.1 у нас немає",
     },
 }

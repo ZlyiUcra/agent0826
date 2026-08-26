@@ -49,15 +49,25 @@ from practice.base.queries import QUERIES
 OUT = pathlib.Path(__file__).resolve().parent.parent / "out"
 RESULTS = OUT / "system_results.json"
 
+# Перша версія промпта описувала GENERAL як «більше однієї теми або жодну», і
+# Haiku читала це надто широко: два поспіль чисто-WRAPPERS запити (український
+# про String.prototype.replace і англійський про Number.prototype.toFixed)
+# пішли в GENERAL — учетверо дорожчий маршрут. Тому тепер правило перевернуте:
+# спершу спробуй назвати ОДНУ тему, і лише якщо не виходить — GENERAL.
 ROUTER_PROMPT = (
     "Класифікуй запит про специфікацію ECMAScript в одну тему:\n"
     "OBJECT — тип Object як такий: атрибути властивостей, внутрішні методи і "
     "слоти, інваріанти, звичайні об'єкти.\n"
     "EXOTIC — екзотичні об'єкти: bound function, Array, String, Arguments, "
     "TypedArray, module namespace, immutable prototype, Proxy.\n"
-    "WRAPPERS — обгортки Object, Boolean, Symbol, Number, String: конструктори "
-    "та методи їхніх прототипів.\n"
-    "GENERAL — запит зачіпає БІЛЬШЕ ОДНІЄЇ теми з переліку, або жодну.\n"
+    "WRAPPERS — обгортки Object, Boolean, Symbol, Number, String: їхні "
+    "конструктори і БУДЬ-ЯКІ методи їхніх прототипів "
+    "(Number.prototype.toFixed, String.prototype.replace тощо).\n"
+    "GENERAL — якщо запит зачіпає ДВІ чи більше тем одразу (наприклад, згадує "
+    "і Proxy, і метод обгортки чи інваріанти внутрішніх методів), або жодну "
+    "з них.\n"
+    "Питання про один метод одного об'єкта — тема цього об'єкта, не GENERAL. "
+    "Питання, де взаємодіють об'єкти з РІЗНИХ тем, — GENERAL. "
     "Відповідай одним словом."
 )
 
@@ -78,11 +88,17 @@ REASONS = {
 }
 
 
+def normalize_route(raw: str) -> str:
+    """Нерозпізнана відповідь маршрутизатора стає GENERAL — запасний маршрут
+    картки. Окремою функцією, щоб smoke перевіряв це без звернення до моделі."""
+    return raw if raw in team.ROUTES else team.GENERAL
+
+
 def route(query: str) -> tuple[str, str]:
     """Категорія від дешевої моделі і її сира відповідь (для журналу)."""
     from core.agent import ask
     raw = ask(ROUTER_PROMPT, query, max_tokens=10, fast=True).upper().strip(".")
-    return (raw if raw in team.ROUTES else team.GENERAL), raw
+    return normalize_route(raw), raw
 
 
 def _all_searches_empty(result: dict) -> bool:
@@ -127,10 +143,55 @@ def _ukrainian(text: str) -> bool:
     return bool(re.search(r"[а-щьюяіїєґ]", text.lower()))
 
 
+# Причини діляться на два роди, і поводяться вони по-різному.
+# Збої самої системи (api_error, вичерпані кроки, провалені інструменти,
+# зіпсовані посилання) передаються людині ОДРАЗУ: питати нема про що, прогін
+# уже зламався. А research_empty — це не збій, а рішення «у наших документах
+# цього немає, віддаю людині», тобто саме та незворотна дія, перед якою картка
+# вимагає паузу: система каже, що збирається зробити, ставить запит у чергу і
+# чекає підтвердження командою --confirm. Модельний request_handoff кладе
+# запити в ту саму чергу.
+PAUSED_REASONS = {"research_empty"}
+
+
 def apply_handoff(result: dict, query: str, reason: str) -> dict:
-    """Завершує маршрут передачею людині. Викликає ту саму заглушку, що
-    доступна GENERAL інструментом, — заявка йде в один журнал."""
+    """Завершує маршрут: збій — передачею людині, рішення — паузою перед нею.
+    Обидві гілки користуються тими самими заглушками, що й модель, — заявки
+    і запити йдуть в одні журнали."""
     uk, en = REASONS[reason]
+    if reason in PAUSED_REASONS:
+        req = team.request_handoff(query, uk)
+        result["handoff"] = {"request_id": req["request_id"], "reason": reason,
+                             "explain": uk, "by": "pipeline", "pending": True}
+        # Відмова називає межу компетенції, а не просто відсутність рядка в
+        # документах: «не знайшов» читається як «пошукай ще», а «це не моя
+        # тема» — як відповідь. Далі — куди піти по відповідь самому і як
+        # дістатися живої людини.
+        if _ukrainian(query):
+            result["answer"] = (
+                "Я довідник зі специфікації ECMAScript, і тільки з неї: у "
+                "кулінарії, географії чи будь-якій іншій темі я не спеціаліст, "
+                "а в самій специфікації працюю лише з вивантаженими розділами. "
+                f"На це питання відповіді в них немає ({uk}).\n"
+                "Повний текст специфікації опубліковано тут: "
+                "https://tc39.es/ecma262/\n"
+                f"Якщо потрібна жива людина — я поставив запит на передачу "
+                f"({req['request_id']}). Передача станеться лише після "
+                "підтвердження командою python -m practice.base.system "
+                "--confirm; можна натомість перефразувати питання.")
+        else:
+            result["answer"] = (
+                "I am a reference assistant for the ECMAScript specification and "
+                "nothing else: I am not a specialist in cooking, geography or any "
+                "other field, and within the specification I work only from the "
+                f"sections available to me. They do not answer this ({en}).\n"
+                "The whole specification is published at https://tc39.es/ecma262/\n"
+                f"If you need a person, I queued a handover request "
+                f"({req['request_id']}). It happens only after you confirm with "
+                "python -m practice.base.system --confirm; rephrasing the question "
+                "is also an option.")
+        return result
+
     ticket = team.handoff_to_human(query, uk)
     result["handoff"] = {"ticket": ticket["ticket"], "reason": reason,
                          "explain": uk, "by": "pipeline"}

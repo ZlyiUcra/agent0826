@@ -62,7 +62,7 @@ import pathlib
 from domain import backend as course_backend
 
 from practice.common import search as psearch
-from practice.common.corpus import load_passages
+from practice.common.corpus import DOC_SET, load_passages
 from practice.common.lexical import LexicalIndex
 from practice.common.vectors import VectorIndex
 
@@ -72,12 +72,28 @@ _COURSE_TOOL_NAMES = frozenset(course_backend.IMPL)
 
 GENERAL = "GENERAL"
 
-# Родина → номери документів (префікс імені файла в practice/docs/).
-FAMILIES = {
-    "OBJECT":   range(1, 6),
-    "EXOTIC":   range(6, 14),
-    "WRAPPERS": range(14, 19),
+# Родина → номери документів (префікс імені файла в теці документів).
+#
+# Розкладка залежить від набору, бо номер документа означає в наборах різне. У
+# «core» вісімнадцять файлів вирізані з околиці sec-object-type і пронумеровані
+# підряд, тож родини ділять їх повністю й без перетинів. У «full» номер файла
+# збігається з номером розділу специфікації, і три родини покривають уже не всю
+# специфікацію, а свої розділи в ній: решта — граматика, вирази, інструкції,
+# колекції, обіцянки, додатки — лишається маршрутові GENERAL, який бачить усе.
+_FAMILIES_BY_SET = {
+    "core": {
+        "OBJECT":   tuple(range(1, 6)),    # тип Object, атрибути, внутрішні методи, інваріанти
+        "EXOTIC":   tuple(range(6, 14)),   # екзотичні об'єкти і Proxy
+        "WRAPPERS": tuple(range(14, 19)),  # обгортки Object/Boolean/Symbol/Number/String
+    },
+    "full": {
+        "OBJECT":   (6, 7),                # 6 Data Types and Values, 7 Abstract Operations
+        "EXOTIC":   (10, 28),              # 10 Ordinary and Exotic Objects, 28 Reflection
+        "WRAPPERS": (19, 20, 21, 22),      # Global, Fundamental, Numbers and Dates, Text Processing
+    },
 }
+
+FAMILIES = _FAMILIES_BY_SET[DOC_SET]
 
 ROUTES = ("OBJECT", "EXOTIC", "WRAPPERS", GENERAL)
 
@@ -126,22 +142,79 @@ def passages_for(family: str):
 
 
 _RETRIEVERS = {"vector": VectorIndex, "lexical": LexicalIndex}
+
+# Сховище в Qdrant підключається на вимогу: сам його імпорт нічого не робить,
+# але створення індексу вимагає піднятого сервера. Тому імпорт живе всередині
+# функції — так само, як імпорт core.agent у common/rewrite.py.
+_LAZY_RETRIEVERS = {"qdrant": ("practice.challenges.qdrant_store", "QdrantIndex")}
+
+# «auto» — не окреме сховище, а правило вибору між двома наявними.
+AUTO = "auto"
+
 _indexes: dict = {}
+_storage_said: set = set()
+
+
+def _say_once(message: str) -> None:
+    """Один рядок на процес про кожне сховище: чотири маршрути беруть індекси
+    по черзі, і без цього те саме повідомлення друкувалося б чотири рази."""
+    if message not in _storage_said:
+        _storage_said.add(message)
+        print(message)
+
+
+def _auto_index(family: str, passages: list):
+    """Qdrant, якщо він доступний; інакше документи.
+
+    Правило живе в challenges/qdrant_store.try_open: сервер є і потрібні
+    фрагменти в ньому — беремо сервер; сервера немає — беремо документи; сервер
+    є, а фрагментів немає — заливаємо їх туди з документів. Вибір друкується
+    рядком: мовчазна підміна сховища — саме те, через що потім не сходяться
+    числа. Разом із відмовою друкується команда підняття, щоб її не доводилося
+    шукати в документації.
+    """
+    try:
+        from practice.challenges import qdrant_store
+        index, why = qdrant_store.try_open(passages)
+    except Exception as e:
+        index, why = None, f"{type(e).__name__}: {e}"
+    if index is not None:
+        _say_once(f"  сховище:      Qdrant — {why}")
+        return index
+    _say_once(f"  сховище:      документи ({why})\n"
+              f"                підняти базу: docker compose up -d   або   "
+              f"python -m practice.challenges.qdrant_store --up")
+    return VectorIndex(passages=passages)
 
 
 def index_for(family: str):
-    """Індекс родини, один на процес. Вид пошуку — зі змінної PRACTICE_RETRIEVER.
+    """Індекс родини, один на процес. Вид пошуку — зі змінної PRACTICE_RETRIEVER:
+    «auto» за замовчуванням (Qdrant, якщо доступний, інакше документи), «vector» —
+    завжди матриця в пам'яті, «qdrant» — лише сервер, без запасного шляху,
+    «lexical» — пошук по словах.
 
     У кожної підмножини свій кеш векторів: відбиток рахується з переданого
-    списку фрагментів, тож файли в practice/index/ не перетинаються.
+    списку фрагментів, тож файли в practice/index/ не перетинаються. У Qdrant
+    те саме робиться інакше — усі фрагменти лежать однією колекцією, а підмножина
+    родини задається фільтром по номеру документа на боці сервера.
     """
-    kind = os.getenv("PRACTICE_RETRIEVER", "vector")
-    if kind not in _RETRIEVERS:
+    kind = os.getenv("PRACTICE_RETRIEVER", AUTO)
+    known = set(_RETRIEVERS) | set(_LAZY_RETRIEVERS) | {AUTO}
+    if kind not in known:
         raise SystemExit(f"Невідомий пошук '{kind}'. Доступні: "
-                         f"{', '.join(sorted(_RETRIEVERS))}")
+                         f"{', '.join(sorted(known))}")
     key = (family, kind)
     if key not in _indexes:
-        _indexes[key] = _RETRIEVERS[kind](passages=passages_for(family))
+        passages = passages_for(family)
+        if kind == AUTO:
+            _indexes[key] = _auto_index(family, passages)
+        elif kind in _RETRIEVERS:
+            _indexes[key] = _RETRIEVERS[kind](passages=passages)
+        else:
+            import importlib
+            module_name, attr = _LAZY_RETRIEVERS[kind]
+            cls = getattr(importlib.import_module(module_name), attr)
+            _indexes[key] = cls(passages=passages)
     return _indexes[key]
 
 
@@ -160,32 +233,63 @@ _QUERY_PROP = {"query": {"type": "string",
 _SEARCH_TAIL = (" Call it before stating anything about the specification. Ask one "
                 "thing at a time; if a question has several parts, search several times.")
 
+# Опис інструмента мусить називати те, що в ньому справді лежить: модель обирає
+# інструмент саме за цим текстом, і опис, успадкований від іншого набору
+# документів, відправляв би її не туди.
+_DESCRIPTIONS = {
+    "core": {
+        "OBJECT": "Searches excerpts of the ECMAScript specification about the Object "
+                  "type itself: property attributes, object internal methods and "
+                  "internal slots, invariants of the essential internal methods, and "
+                  "ordinary objects (sections 6.1.7 and 10.1).",
+        "EXOTIC": "Searches excerpts of the ECMAScript specification about exotic "
+                  "objects: bound functions, Array, String, Arguments, TypedArray, "
+                  "module namespaces, immutable prototypes (sections 10.4.1-10.4.7) "
+                  "and Proxy (section 10.5).",
+        "WRAPPERS": "Searches excerpts of the ECMAScript specification about the "
+                    "wrapper objects: the Object, Boolean, Symbol, Number and String "
+                    "constructors and their prototypes (sections 20.1, 20.3, 20.4, "
+                    "21.1, 22.1).",
+        GENERAL: "Searches all available excerpts of the ECMAScript specification: "
+                 "the Object type, exotic objects including Proxy, and the Object, "
+                 "Boolean, Symbol, Number and String wrapper objects.",
+    },
+    "full": {
+        "OBJECT": "Searches the ECMAScript specification chapters on data types and "
+                  "values (chapter 6: the Object type, property attributes, object "
+                  "internal methods and slots, their invariants) and on abstract "
+                  "operations (chapter 7: type conversion, testing and comparison, "
+                  "operations on objects and iterators).",
+        "EXOTIC": "Searches the ECMAScript specification chapters on ordinary and "
+                  "exotic object behaviours (chapter 10: ordinary objects, bound "
+                  "functions, Array, String, Arguments, TypedArray, module "
+                  "namespaces, immutable prototypes, Proxy internal methods) and on "
+                  "reflection (chapter 28: the Reflect namespace and Proxy objects).",
+        "WRAPPERS": "Searches the ECMAScript specification chapters on the global "
+                    "object (chapter 19), fundamental objects (chapter 20: Object, "
+                    "Boolean, Symbol, Error), numbers and dates (chapter 21: Number, "
+                    "BigInt, Math, Date) and text processing (chapter 22: String and "
+                    "RegExp).",
+        GENERAL: "Searches the entire ECMAScript specification, all 38 chapters and "
+                 "annexes: language grammar, expressions, statements, functions and "
+                 "classes, modules, every built-in object, and the memory model.",
+    },
+}
+
+_DESC = _DESCRIPTIONS[DOC_SET]
+
 SCHEMAS = {
     TOOL_NAMES["OBJECT"]: _schema(
-        TOOL_NAMES["OBJECT"],
-        "Searches excerpts of the ECMAScript specification about the Object type "
-        "itself: property attributes, object internal methods and internal slots, "
-        "invariants of the essential internal methods, and ordinary objects "
-        "(sections 6.1.7 and 10.1)." + _SEARCH_TAIL,
+        TOOL_NAMES["OBJECT"], _DESC["OBJECT"] + _SEARCH_TAIL,
         _QUERY_PROP, ["query"]),
     TOOL_NAMES["EXOTIC"]: _schema(
-        TOOL_NAMES["EXOTIC"],
-        "Searches excerpts of the ECMAScript specification about exotic objects: "
-        "bound functions, Array, String, Arguments, TypedArray, module namespaces, "
-        "immutable prototypes (sections 10.4.1-10.4.7) and Proxy (section 10.5)."
-        + _SEARCH_TAIL,
+        TOOL_NAMES["EXOTIC"], _DESC["EXOTIC"] + _SEARCH_TAIL,
         _QUERY_PROP, ["query"]),
     TOOL_NAMES["WRAPPERS"]: _schema(
-        TOOL_NAMES["WRAPPERS"],
-        "Searches excerpts of the ECMAScript specification about the wrapper "
-        "objects: the Object, Boolean, Symbol, Number and String constructors and "
-        "their prototypes (sections 20.1, 20.3, 20.4, 21.1, 22.1)." + _SEARCH_TAIL,
+        TOOL_NAMES["WRAPPERS"], _DESC["WRAPPERS"] + _SEARCH_TAIL,
         _QUERY_PROP, ["query"]),
     TOOL_NAMES[GENERAL]: _schema(
-        TOOL_NAMES[GENERAL],
-        "Searches all available excerpts of the ECMAScript specification: the "
-        "Object type, exotic objects including Proxy, and the Object, Boolean, "
-        "Symbol, Number and String wrapper objects." + _SEARCH_TAIL,
+        TOOL_NAMES[GENERAL], _DESC[GENERAL] + _SEARCH_TAIL,
         _QUERY_PROP, ["query"]),
     RESEARCH_TOOL: _schema(
         RESEARCH_TOOL,
@@ -344,9 +448,16 @@ _RULES = (
     "\n\nRules you must follow:\n"
     "1. Use your tools before you answer. Never state a fact about the "
     "specification that did not come back from a tool in this conversation.\n"
-    "2. If nothing returned answers the question, say plainly that the excerpts "
-    "available to you do not cover it, and name what they do cover. Do not answer "
-    "from your own knowledge of JavaScript, do not guess.\n"
+    "2. Your subject is the ECMAScript specification and nothing else. A question "
+    "about cooking, geography, travel, prices or any other field is not yours: say "
+    "plainly that you are not a specialist in that subject, that you are a "
+    "reference assistant for the ECMAScript specification, and stop there — do not "
+    "answer it even if you happen to know the answer. Where a human colleague can "
+    "take the question over, offer that instead of guessing.\n"
+    "2a. If the question IS about the specification but nothing returned answers "
+    "it, say so, name what the excerpts do cover, and point to "
+    "https://tc39.es/ecma262/ where the whole specification is published. Do not "
+    "answer from your own knowledge of JavaScript, do not guess.\n"
     "3. Cite every claim with the id shown in brackets, e.g. "
     "[18-string-objects#22.1.3.19]. Keep ids exactly as returned: never translate, "
     "shorten or invent them.\n"
@@ -377,11 +488,12 @@ PROMPTS = {
         "You have no search of your own: delegate the draft work to the "
         "research_topic tool, one self-contained topic per call — a question with "
         "several parts means several calls. Compose your answer strictly from the "
-        "summaries the tool returns, keeping their citations. If research finds "
-        "nothing that answers the question, or what it found does not actually "
-        "answer it, call request_handoff: it only ANNOUNCES the handover, so tell "
-        "the user what is about to happen and that it waits for their "
-        "confirmation — never improvise an answer instead." + _RULES),
+        "summaries the tool returns, keeping their citations. If every research "
+        "call comes back empty, or what came back does not actually answer the "
+        "question, do NOT compose an answer of your own: call request_handoff "
+        "first. It only ANNOUNCES the handover, so after calling it tell the "
+        "user what is about to happen and that it waits for their "
+        "confirmation." + _RULES),
 }
 
 
