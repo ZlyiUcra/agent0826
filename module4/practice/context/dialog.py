@@ -41,6 +41,7 @@
     python -m practice.context.dialog --script recall        # у НОВОМУ процесі після long
     python -m practice.context.dialog --list                 # сценарії і стратегії, $0
     python -m practice.context.dialog --chat                 # жива бесіда з клавіатури
+    python -m practice.context.dialog --chat "Що таке Proxy?"  # перша репліка з рядка, далі з клавіатури
     python -m practice.context.dialog --chat --history prune
 
 ЖИВА БЕСІДА
@@ -50,6 +51,14 @@
 що її переживає. Пригадування з довгої пам'яті робиться на першій репліці —
 раніше нема за чим шукати. Перевірок сценарію тут немає: перевіряти нема з
 чим, бо правила ніхто не закладав наперед.
+
+Хто зараз має говорити, видно з підказки: «ви ›» — програма чекає на репліку
+з клавіатури; після Enter у тому самому рядку б'ється пульс «думає · 7 с ·
+виклик 2 з 8 · пошук: «…»» (common/pulse.py) — стільки секунд минуло, який за
+рахунком виклик моделі йде і що саме шукається; коли відповідь готова, пульс
+стирається і вона друкується після «агент ›». Першу репліку можна дати прямо
+в команді — --chat "…" — і тоді бесіда починається з неї, а далі йде з
+клавіатури.
 
 Закінчити бесіду — набрати /кінець або /end: розмова завершується, її запис
 лягає на диск і в пам'ять як звичайно, і одразу після цього слід бесіди
@@ -77,6 +86,7 @@ from domain.backend import dispatch
 from practice.base import team
 from practice.base.single import SINGLE_PROMPT
 from practice.common import nform
+from practice.common.pulse import Pulse
 from practice.context import cleanup, history, memory, window
 from practice.context import script as scripts
 from practice.context.ledger import Ledger
@@ -150,12 +160,16 @@ def growth(rows: list[dict]) -> dict:
 END_COMMANDS = ("/кінець", "/end")
 
 
-def chat_turns(state: dict):
-    """Репліки з клавіатури для --chat. /кінець або /end ставить state["closed"]
-    і завершує розмову; порожній рядок чи Ctrl-D завершують без закриття."""
+def chat_turns(state: dict, first: str | None = None):
+    """Репліки з клавіатури для --chat; `first` — репліка з рядка команди, що йде
+    перед клавіатурою. /кінець або /end ставить state["closed"] і завершує
+    розмову; порожній рядок чи Ctrl-D завершують без закриття."""
+    if first:
+        print(f"ви › {first}")
+        yield first
     while True:
         try:
-            text = input("› ").strip()
+            text = input("ви › ").strip()
         except EOFError:
             print()
             return
@@ -192,6 +206,10 @@ def run(script_name: str = "long", strategy_name: str = "full", cache: bool = Tr
     if verbose:
         print(f"── Розмова · {tag} · {MODEL_FAST} ──")
         print(f"  пам'ять, що переживає розмову: {where}")
+    # Індекс пошуку збирається тут, а не на першому пошуку: рядок про сховище
+    # має лягти під шапку, а не поверх пульсу, і завантаження моделі ембедингів
+    # не має видаватися за роздуми над першою реплікою.
+    team.index_for(team.GENERAL)
 
     messages: list = []
     answers, searches, rows = [], [], []
@@ -215,7 +233,9 @@ def run(script_name: str = "long", strategy_name: str = "full", cache: bool = Tr
         messages.append({"role": "user",
                          "content": text if order == "wrong" else f"{text}\n\n({volatile})"})
         turn_searches, turn_rows, sent, system_blocks = [], [], messages, []
-        for _ in range(MAX_TURNS):
+        with Pulse("думає") as pulse:
+          for k in range(MAX_TURNS):
+            pulse.note(f"виклик {k + 1} з {MAX_TURNS}")
             sent = strategy.shape(messages, last_total)
             system_blocks = _system(order, long_block,
                                     _volatile(session, use_memory) if order == "wrong" else "",
@@ -231,6 +251,7 @@ def run(script_name: str = "long", strategy_name: str = "full", cache: bool = Tr
             for b in resp.content:
                 if b.type != "tool_use":
                     continue
+                pulse.note(f"пошук: «{b.input.get('query', '')}»")
                 out = dispatch(b.name, b.input)
                 session.note_hits(out)
                 turn_searches.append({"query": b.input.get("query", ""),
@@ -255,7 +276,8 @@ def run(script_name: str = "long", strategy_name: str = "full", cache: bool = Tr
                "usd": round(sum(r["usd"] for r in turn_rows), 6)}
         rows.append(row)
         if verbose:
-            print(f"[{n:>2}] › {text}")
+            if script is not None:
+                print(f"[{n:>2}] › {text}")
             for f in new_facts:
                 print(f"      запам'ятав: {f}")
             for s in turn_searches:
@@ -264,6 +286,8 @@ def run(script_name: str = "long", strategy_name: str = "full", cache: bool = Tr
                 print(f"      тема: {'; '.join(topics)}")
             print(f"      відповідь · {scripts.sentences(answer)} реч. · розділ "
                   f"{'є' if scripts.cites_section(answer) else 'НЕМАЄ'}")
+            if script is None:
+                print("агент ›")
             for line in answer.splitlines():
                 print(f"        {line}")
             print(f"      вікно {window.line(parts)} · з кеша {row['cache_read']:,} / "
@@ -336,6 +360,22 @@ def print_summary(record: dict) -> None:
     print(f"  Збережено: {record['path']}\n")
 
 
+_VALUED = ("--script", "--history", "--order")
+
+
+def first_turn(argv: list[str]) -> str | None:
+    """Репліка з рядка команди для --chat: усе, що не прапорець і не його
+    значення. Без --chat такий аргумент — помилка, а не мовчазне ігнорування."""
+    taken = {argv[argv.index(f) + 1] for f in _VALUED
+             if f in argv and argv.index(f) + 1 < len(argv)}
+    positional = [a for a in argv if not a.startswith("--") and a not in taken]
+    if not positional:
+        return None
+    if "--chat" not in argv:
+        raise SystemExit("Репліка з рядка команди приймається лише разом із --chat.")
+    return " ".join(positional)
+
+
 def main(argv: list[str]) -> int:
     if "-h" in argv or "--help" in argv:
         print(__doc__)
@@ -358,6 +398,7 @@ def main(argv: list[str]) -> int:
         return default
 
     chat = "--chat" in argv
+    first = first_turn(argv)
     script_name = "chat" if chat else option("--script", "long")
     strategy_name = option("--history", "full")
     order = option("--order", "right")
@@ -376,7 +417,7 @@ def main(argv: list[str]) -> int:
               "порожній рядок або Ctrl-D — закінчити, лишивши бесіду незакритою.\n")
     record = run(script_name, strategy_name, cache="--no-cache" not in argv, order=order,
                  use_memory="--no-memory" not in argv, verbose="--quiet" not in argv,
-                 turns=chat_turns(state) if chat else None)
+                 turns=chat_turns(state, first) if chat else None)
     if record is None:
         print("Реплік не було — нічого не збережено.")
         return 0

@@ -9,7 +9,7 @@
 
 ```
 .venv/bin/python -m practice.base.system "Як Proxy перехоплює читання властивості?"   # своє питання системі, ~$0.02–0.35
-.venv/bin/python -m practice.base.smoke                                                # перевірка дизайну, 33 перевірки, $0
+.venv/bin/python -m practice.base.smoke                                                # перевірка дизайну, 36 перевірок, $0
 .venv/bin/python -m practice.base.compare                                              # вимір картки: п'ять запитів через обох, ~$1
 ```
 
@@ -136,6 +136,7 @@ request_handoff` — інструмент прибрано зі списку GEN
 .venv/bin/python -m practice.context.dialog --history cut       # платно: те саме з обрізанням
 .venv/bin/python -m practice.context.dialog --script short      # платно: дві репліки, друга без теми
 .venv/bin/python -m practice.context.dialog --chat       # платно: жива бесіда з клавіатури; /кінець — закрити
+.venv/bin/python -m practice.context.dialog --chat "Що таке Proxy?"   # платно: перша репліка з рядка, далі з клавіатури
 .venv/bin/python -m practice.context.series              # платно: сім прогонів тієї самої розмови, таблиця
 .venv/bin/python -m practice.context.drop                # платно: три запити з request_handoff і без, ~$0.4
 .venv/bin/python -m practice.context.cleanup --status    # $0: незакриті бесіди — записи, журнали, факти

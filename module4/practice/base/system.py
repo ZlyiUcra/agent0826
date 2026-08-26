@@ -28,6 +28,11 @@
     python -m practice.base.system "свій запит"   # довільний запит
     python -m practice.base.system --confirm      # підтвердити передачу людині, $0
     python -m practice.base.system --list         # перелік сценаріїв, $0
+
+Поки триває етап — роутер, спеціаліст, запасний маршрут, критик, — у рядку
+б'ється пульс «думає · спеціаліст OBJECT · 12 с» (common/pulse.py): видно, що
+процес живий і скільки він уже чекає на модель. Пульс малюється лише в
+терміналі; у журнал фонового прогону не потрапляє.
     прапорці: --lexical (пошук по словах), --rewrite (переписування бідного
     запиту), --live (живий сайт для EXOTIC, потребує challenges/live_fetch.py),
     --fast (спеціалісти, субагент і критик на дешевій моделі каскаду),
@@ -49,6 +54,7 @@ from core.agent import USAGE, reset_usage, run_agent
 
 from practice.base import critic, team
 from practice.common import nform
+from practice.common.pulse import Pulse
 from practice.base.queries import QUERIES
 
 OUT = pathlib.Path(__file__).resolve().parent.parent / "out"
@@ -223,26 +229,33 @@ def run_system(query: str, live: bool = False) -> dict:
         extra = [live_fetch.SCHEMA]
         addon = live_fetch.PROMPT_ADDON
 
-    routed, raw = route(query)
+    with Pulse("думає · роутер"):
+        routed, raw = route(query)
 
-    def _run(r: str) -> dict:
-        out = run_agent(system=team.prompt_for_route(r) + (addon if r == "EXOTIC" else ""),
-                        tools=team.tools_for_route(
-                            r, extra if r == "EXOTIC" else None),
-                        query=query)
+    def _run(r: str, label: str) -> dict:
+        with Pulse(f"думає · {label}"):
+            out = run_agent(system=team.prompt_for_route(r) + (addon if r == "EXOTIC" else ""),
+                            tools=team.tools_for_route(
+                                r, extra if r == "EXOTIC" else None),
+                            query=query)
         out["routed_to"] = r
         out["router_raw"] = raw
         return out
 
-    result = _run(routed)
+    # Індекс маршруту збирається до пульсу: рядок про сховище має вийти окремим
+    # рядком, а не лягти поверх «думає · …».
+    team.index_for(routed)
+    result = _run(routed, f"спеціаліст {routed}")
 
     if routed != team.GENERAL and _all_searches_empty(result):
-        retry = _run(team.GENERAL)
+        team.index_for(team.GENERAL)
+        retry = _run(team.GENERAL, "запасний маршрут GENERAL")
         retry["fallback_from"] = routed
         result = retry
 
     if result["routed_to"] == "WRAPPERS":
-        critic.run_critic(result, team.PROMPTS["WRAPPERS"], query)
+        with Pulse("думає · критик"):
+            critic.run_critic(result, team.PROMPTS["WRAPPERS"], query)
     if "citations" not in result:
         result["citations"] = critic.check_citations(result["answer"],
                                                      result["trace"])

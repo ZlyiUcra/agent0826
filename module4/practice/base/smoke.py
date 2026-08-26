@@ -218,6 +218,34 @@ def main(argv: list[str]) -> int:
           and "unquoted body" in lf._extract_section(page_u, "sec-t")
           and lf._extract_section(page_u, "sec-missing") is None)
 
+    # 9б. Жива бесіда: перша репліка з рядка команди і пульс очікування.
+    import io
+    from practice.common.pulse import Pulse
+    from practice.context.dialog import first_turn
+    check("перша репліка з рядка береться лише з --chat",
+          first_turn(["--chat", "Що таке Proxy?", "--history", "prune"]) == "Що таке Proxy?"
+          and first_turn(["--chat", "--history", "prune"]) is None
+          and first_turn(["--script", "short"]) is None)
+    try:
+        first_turn(["Що таке Proxy?"])
+        stray_refused = False
+    except SystemExit:
+        stray_refused = True
+    check("репліка без --chat — помилка, а не мовчазне ігнорування", stray_refused)
+
+    class _Tty(io.StringIO):
+        def isatty(self):
+            return True
+
+    quiet, tty = io.StringIO(), _Tty()
+    with Pulse("думає", stream=quiet):
+        pass
+    with Pulse("думає", stream=tty, every=0.05) as pulse:
+        pulse.note("виклик 1 з 8")
+    drawn = tty.getvalue()
+    check("пульс мовчить поза терміналом і малює в терміналі",
+          quiet.getvalue() == "" and "виклик 1 з 8" in drawn and drawn.endswith("\r"))
+
     # 10. За бажанням — прогрів індексів (модель ембедингів, хвилини на CPU).
     if "--warm" in sys.argv:
         print("  прогрів векторних індексів...")

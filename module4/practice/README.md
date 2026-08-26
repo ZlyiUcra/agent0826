@@ -21,7 +21,7 @@
 
 ```
 .venv/bin/python -m practice.base.system "Як Proxy перехоплює читання властивості?"   # своє питання системі, ~$0.02–0.35
-.venv/bin/python -m practice.base.smoke                                                # перевірка дизайну, 33 перевірки, $0
+.venv/bin/python -m practice.base.smoke                                                # перевірка дизайну, 36 перевірок, $0
 .venv/bin/python -m practice.base.compare                                              # вимір картки: п'ять запитів через обох, ~$1
 ```
 
@@ -46,7 +46,7 @@
 промпта (розбір нижче), критик і пауза перед передачею людині показані в живих прогонах, головний вимір
 `compare` зроблено: на п'яти зафіксованих запитах один агент утричі дешевший ($0.21 проти $0.64), а
 система дає на одну показувану відповідь більше (4 з 5 проти 3 з 5). Висновок «кому довірити клієнтів» —
-у розділі «Вимір». Тридцять три перевірки `python -m practice.base.smoke` зелені.
+у розділі «Вимір». Тридцять шість перевірок `python -m practice.base.smoke` зелені.
 
 Друга картка модуля — «Завдання 2: контекст і пам'ять» — виконана також, разом із необов'язковими пунктами:
 обов'язкові 7 з 7, необов'язкові 4 з 4, усі платні прогони на дешевій моделі ($3.03 разом). Чекбокси і докази —
@@ -592,17 +592,19 @@ STATUS, FINANCE, CLAIM або HUMAN, і для кожної категорії �
 на передачу людині в чергу, і `--confirm` його підтверджує. `--fast` веде спеціалістів на дешеву модель.
 
 Другий спосіб — бесіда з одним агентом, де кожна наступна репліка бачить попередні: це друга картка, та сама
-машинерія, що й у сценаріях. Команда одна, репліки набираються після знака `›`:
+машинерія, що й у сценаріях. Команда одна, репліки набираються після підказки `ви ›`; поки модель відповідає,
+у тому самому рядку б'ється пульс `думає · 7 с · виклик 2 з 8 · пошук: «…»`, а готова відповідь друкується після
+`агент ›`. Першу репліку можна дати прямо в команді: `--chat "…"`, далі бесіда йде з клавіатури.
 
 ```
 .venv/bin/python -m practice.context.dialog --chat
-› I am writing a tutorial about String.prototype.replace. Keep every answer to three sentences and always name the section.
-› What can the second argument be?
-› And when it is a function, what does that function receive?
-› Як пастка get у Proxy перехоплює читання властивості?
-› Back to replace: does it modify the original string or return a new one?
-› Which method did we start with, and what two rules did I ask you to follow?
-› /кінець
+ви › I am writing a tutorial about String.prototype.replace. Keep every answer to three sentences and always name the section.
+ви › What can the second argument be?
+ви › And when it is a function, what does that function receive?
+ви › Як пастка get у Proxy перехоплює читання властивості?
+ви › Back to replace: does it modify the original string or return a new one?
+ви › Which method did we start with, and what two rules did I ask you to follow?
+ви › /кінець
 ```
 
 Перша репліка ставить питання і закладає два правила на всю бесіду — дешева модель дістає їх у пам'ять розмови,
