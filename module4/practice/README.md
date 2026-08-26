@@ -147,6 +147,7 @@
   .venv/bin/python -m practice.challenges.spec_download
   .venv/bin/python -m practice.challenges.suite_download --list
   .venv/bin/python -m practice.challenges.suite_download
+  PRACTICE_DOCS=suite .venv/bin/python -m practice.base.probe --suite
   ```
 - Перелік п'яти запитів виміру і прапорців ($0):
   ```
@@ -475,6 +476,7 @@ practice/
     single.py      один агент — точка відліку
     compare.py     вимір картки
     smoke.py       безкоштовні перевірки; --warm збирає індекси
+    probe.py       що піднімає пошук на запит, $0; --suite — сім запитів про документи довкола 402
   challenges/
     live_fetch.py     живий tc39.es для EXOTIC, лише з --live
     scale.py          вимір «де система обганяє» від обсягу корпусу, на дешевій моделі

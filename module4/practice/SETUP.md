@@ -105,6 +105,7 @@ cp .env.example .env    # і впишіть ANTHROPIC_API_KEY
 ```
 .venv/bin/python -m practice.base.smoke              # $0: підмножини, схеми, реєстрація, тригери
 .venv/bin/python -m practice.base.smoke --warm       # $0: те саме плюс збірка векторних індексів
+.venv/bin/python -m practice.base.probe "питання"    # $0: що підніме пошук на це питання, без моделі
 .venv/bin/python -m practice.base.system --list      # $0: п'ять запитів виміру і перелік прапорців
 .venv/bin/python -m practice.base.system "питання"   # платно: своє питання, мовою питання
 .venv/bin/python -m practice.base.system attrs       # платно: один іменований запит через систему
