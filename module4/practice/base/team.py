@@ -57,6 +57,7 @@ tools_for() не змінюються; курсові файли не зачеп
 
 import json
 import os
+import re
 import pathlib
 
 from domain import backend as course_backend
@@ -92,6 +93,11 @@ _FAMILIES_BY_SET = {
         "WRAPPERS": (19, 20, 21, 22),      # Global, Fundamental, Numbers and Dates, Text Processing
     },
 }
+# «suite» — та сама 262 плюс ECMA-402/404/414 і документи довкола 402.
+# Родини ті самі, що у «full»: документи з префіксом стандарту (402-…, 404-…,
+# 414-…) і документи довкола 402 (rfc…, uax…, uts…) номера документа не мають
+# (doc_number дає 0) і дістаються лише маршрутові GENERAL.
+_FAMILIES_BY_SET["suite"] = _FAMILIES_BY_SET["full"]
 
 FAMILIES = _FAMILIES_BY_SET[DOC_SET]
 
@@ -112,9 +118,14 @@ REQUEST_TOOL = "request_handoff"
 PENDING_FILE = pathlib.Path(__file__).resolve().parent.parent / "out" / "pending_handoff.json"
 
 
+_DOC_NUMBER = re.compile(r"^(\d{2})-")
+
+
 def doc_number(doc_id: str) -> int:
-    """Номер документа з імені файла: «07-array-exotic-objects» → 7."""
-    return int(doc_id[:2])
+    """Номер документа з імені файла: «07-array-exotic-objects» → 7. Документи
+    інших стандартів («402-08-intl-object») номера не мають — 0, поза родинами."""
+    m = _DOC_NUMBER.match(doc_id)
+    return int(m.group(1)) if m else 0
 
 
 _passages = None
@@ -275,6 +286,19 @@ _DESCRIPTIONS = {
                  "classes, modules, every built-in object, and the memory model.",
     },
 }
+_DESCRIPTIONS["suite"] = dict(
+    _DESCRIPTIONS["full"],
+    **{GENERAL: "Searches the whole ECMAScript specification suite: ECMA-262 (all 38 "
+                "chapters and annexes: grammar, expressions, statements, functions and "
+                "classes, modules, every built-in object, the memory model), ECMA-402 "
+                "(the Intl object: Collator, DateTimeFormat, NumberFormat, PluralRules, "
+                "Locale, Segmenter and other locale-sensitive functionality), ECMA-404 "
+                "(the JSON data interchange syntax) and ECMA-414 (which standards make up "
+                "the suite), plus the free documents ECMA-402 relies on: RFC 4647 (matching "
+                "of language tags), Unicode UAX #29 (text segmentation), UTS #10 (the "
+                "collation algorithm) and UTS #35 LDML parts 1-5 (locale identifiers, unit "
+                "identifiers, number formats and plural rules, date and time formats, "
+                "collation tailoring)."})
 
 _DESC = _DESCRIPTIONS[DOC_SET]
 

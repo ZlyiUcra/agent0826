@@ -41,6 +41,11 @@ def main(argv: list[str]) -> int:
     if DOC_SET == "core":
         check("родини покривають документи 01–18 повністю",
               numbers == list(range(1, 19)))
+    check("документи інших стандартів і посилань (402-, 404-, rfc…, uts…) поза родинами",
+          team.doc_number("07-array-exotic-objects") == 7
+          and team.doc_number("402-08-intl-object") == 0
+          and team.doc_number("404-json") == 0
+          and team.doc_number("uts35-1-core") == 0)
 
     # 2. Підмножини фрагментів не перетинаються і складаються в повний набір
     # (у «core») або в його частину (у «full»).

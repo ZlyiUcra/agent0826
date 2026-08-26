@@ -573,7 +573,7 @@ def ingest_notes(verbose: bool = True) -> dict:
 
 
 def migrate() -> int:
-    """Переносить у базу все, що є: обидва набори документів і документацію.
+    """Переносить у базу все, що є: усі три набори документів і документацію.
 
     Кожен крок — окремий процес, бо набір документів обирається під час
     імпорту, і в одному процесі їх не поміняти. Згоду кожен крок питає сам,
@@ -585,6 +585,7 @@ def migrate() -> int:
     steps = [
         ("вісімнадцять розділів навколо sec-object-type", {"PRACTICE_DOCS": "core"}, []),
         ("уся специфікація", {"PRACTICE_DOCS": "full"}, []),
+        ("уся специфікація з ECMA-402/404/414 і посиланнями 402", {"PRACTICE_DOCS": "suite"}, []),
         ("документація практики", {}, ["--notes"]),
     ]
     print(f"── Перенесення в базу {QDRANT_URL} ──")
@@ -688,7 +689,7 @@ def main(argv: list[str]) -> int:
     ingest()
     print(f"  дашборд:      {QDRANT_URL}/dashboard")
     print("  агент на цьому сховищі:")
-    print("    python -m practice.base.ask replace --qdrant")
+    print("    python -m practice.base.system \"свій запит\"")
     return 0
 
 

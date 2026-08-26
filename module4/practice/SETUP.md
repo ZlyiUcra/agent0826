@@ -9,7 +9,7 @@
 
 ```
 .venv/bin/python -m practice.base.system "Як Proxy перехоплює читання властивості?"   # своє питання системі, ~$0.02–0.35
-.venv/bin/python -m practice.base.smoke                                                # перевірка дизайну, 32 перевірки, $0
+.venv/bin/python -m practice.base.smoke                                                # перевірка дизайну, 33 перевірки, $0
 .venv/bin/python -m practice.base.compare                                              # вимір картки: п'ять запитів через обох, ~$1
 ```
 
@@ -28,12 +28,16 @@ python3 -m venv .venv
 .venv/bin/python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 .venv/bin/python -m pip install sentence-transformers python-dotenv
 .venv/bin/python -m pip install 'anthropic==0.122.*'
+.venv/bin/python -m pip install pypdf
 ```
 
 Чому саме так, а не `pip install -r requirements.txt`:
 
 - Торч ставиться з окремого індексу PyTorch, збірка лише під процесор. Звичайний `pip install torch` тягне
   збірку з CUDA — кілька гігабайтів під відеокарту, якої це середовище не використовує.
+- `pypdf` потрібен лише одному скрипту — `challenges/suite_download.py`: два документи набору специфікацій
+  ECMAScript, ECMA-404 (JSON) і ECMA-414 (склад набору), Ecma видає тільки як PDF. Без `pypdf` решта
+  практики працює як і працювала.
 - Курсовий `requirements.txt` перелічує ще й фреймворковий стек: langchain, langgraph, ragas. Практиці він
   не потрібен, а ставиться довго й важко, тому набір тримається мінімальним. Знадобиться фреймворковий
   стек — ставте його окремо і свідомо, прочитавши спершу наступний пункт.
@@ -63,6 +67,8 @@ python3 -m venv .venv
 docker compose up -d                                  # підняти базу (з кореня репозиторію)
 .venv/bin/python -m practice.challenges.qdrant_store --info      # що в ній зараз
 .venv/bin/python -m practice.challenges.qdrant_store --migrate   # перенести все, що є
+.venv/bin/python -m practice.challenges.suite_download           # $0: 402, 404, 414 і документи довкола 402
+PRACTICE_DOCS=suite .venv/bin/python -m practice.challenges.qdrant_store   # залити набір suite у spec-suite-e5
 ```
 
 Без бази нічого не ламається: практика падає на документи і щоразу друкує рядок про це разом із командою
@@ -147,8 +153,10 @@ request_handoff` — інструмент прибрано зі списку GEN
   вимикають вибір: `qdrant` — лише база, `vector` — лише документи, `lexical` — пошук по словах.
 - `PRACTICE_REWRITE` — `1` вмикає переписування бідного запиту (додатковий виклик дешевої моделі).
 - `PRACTICE_EMBED_MODEL` — `e5` (типово) або `bge`: модель ембедингів, кеші в них окремі.
-- `PRACTICE_DOCS` — `core` (вісімнадцять розділів навколо `sec-object-type`) або `full` (уся специфікація,
-  38 розділів у `practice/docs-full/`, 2436 фрагментів).
+- `PRACTICE_DOCS` — `core` (вісімнадцять розділів навколо `sec-object-type`), `full` (уся специфікація
+  ECMA-262: 38 розділів у `practice/docs-full/`, 2436 фрагментів) або `suite` (та сама `docs-full/` плюс
+  ECMA-402, 404, 414 і вісім вільних документів довкола 402 у `docs-suite/`: 70 документів, 3964
+  фрагменти).
 - `QDRANT_URL`, `QDRANT_AUTO_INGEST` і решта налаштувань бази — у `STORAGE.md` і в `.env.example`.
 
 ## Правила розробки

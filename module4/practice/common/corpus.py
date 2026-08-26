@@ -45,20 +45,30 @@ import os
 import pathlib
 import re
 
-# Два набори документів, і вони навмисно не змішуються. «core» — вісімнадцять
+# Три набори документів, і вони навмисно не змішуються. «core» — вісімнадцять
 # розділів навколо sec-object-type, ті самі, на яких зроблено всі виміри
-# практики. «full» — уся специфікація, вивантажена challenges/spec_download.py
-# у practice/docs-full/. Повна специфікація містить і розділи набору core, тому
-# в одній купі кожен такий фрагмент трапився б двічі під різними
-# ідентифікаторами, а числа, записані в README і CHECKLIST, перестали б
-# стосуватися того, що лежить у теці. Вибір — змінною PRACTICE_DOCS.
-DOC_SETS = {"core": "docs", "full": "docs-full"}
+# практики. «full» — уся специфікація ECMA-262, вивантажена
+# challenges/spec_download.py у practice/docs-full/. Повна специфікація містить
+# і розділи набору core, тому в одній купі кожен такий фрагмент трапився б двічі
+# під різними ідентифікаторами, а числа, записані в README і CHECKLIST,
+# перестали б стосуватися того, що лежить у теці. «suite» — та сама docs-full/
+# плюс practice/docs-suite/ з рештою набору специфікацій ECMAScript (ECMA-402,
+# 404, 414) і вільними документами довкола 402 (RFC 4647, звіти Unicode); усе
+# це кладе challenges/suite_download.py. Набір складається з двох
+# тек, щоб жоден документ 262 не лежав двічі. Вибір — змінною PRACTICE_DOCS.
+DOC_SETS = {
+    "core":  ("docs",),
+    "full":  ("docs-full",),
+    "suite": ("docs-full", "docs-suite"),
+}
 DOC_SET = os.getenv("PRACTICE_DOCS", "core")
 if DOC_SET not in DOC_SETS:
     raise SystemExit(f"Невідомий набір документів '{DOC_SET}'. "
                      f"Доступні: {', '.join(sorted(DOC_SETS))}")
 
-DOCS_DIR = pathlib.Path(__file__).resolve().parent.parent / DOC_SETS[DOC_SET]
+_ROOT = pathlib.Path(__file__).resolve().parent.parent
+DOCS_DIRS = [_ROOT / name for name in DOC_SETS[DOC_SET]]
+DOCS_DIR = DOCS_DIRS[0]
 
 # Межа розміру фрагмента. Її задає не смак, а вікно моделі ембедингів:
 # e5-small читає 512 токенів і мовчки відрізає все, що далі. Текст специфікації
@@ -139,16 +149,27 @@ class Passage:
         return f"<Passage {self.pid} {len(self.text)} симв.>"
 
 
+_DOWNLOAD_HINT = {
+    "docs-full":  "python -m practice.challenges.spec_download",
+    "docs-suite": "python -m practice.challenges.suite_download",
+}
+
+
 def load_documents() -> list[Document]:
-    """Усі .txt із practice/docs/, у порядку імен файлів (він же порядок розділів)."""
-    files = sorted(DOCS_DIR.glob("*.txt"))
-    if not files:
-        raise SystemExit(
-            f"У {DOCS_DIR} немає жодного .txt.\n"
-            "Документи лежать у репозиторії; якщо теки немає — вивантажте розділи "
-            "специфікації заново."
-        )
-    return [Document(p) for p in files]
+    """Усі .txt із тек набору, тека за текою, у порядку імен файлів (він же
+    порядок розділів)."""
+    docs = []
+    for folder in DOCS_DIRS:
+        files = sorted(folder.glob("*.txt"))
+        if not files:
+            hint = _DOWNLOAD_HINT.get(folder.name)
+            raise SystemExit(
+                f"У {folder} немає жодного .txt.\n"
+                + (f"Вивантажте їх: {hint}" if hint else
+                   "Документи лежать у репозиторії; якщо теки немає — вивантажте розділи "
+                   "специфікації заново."))
+        docs.extend(Document(p) for p in files)
+    return docs
 
 
 def _split_long(doc: Document, section: str, heading: str, text: str,
