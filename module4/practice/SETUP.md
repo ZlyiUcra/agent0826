@@ -29,6 +29,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install sentence-transformers python-dotenv
 .venv/bin/python -m pip install 'anthropic==0.122.*'
 .venv/bin/python -m pip install pypdf
+.venv/bin/python -m pip install qdrant-client
 ```
 
 Чому саме так, а не `pip install -r requirements.txt`:
@@ -38,9 +39,15 @@ python3 -m venv .venv
 - `pypdf` потрібен лише одному скрипту — `challenges/suite_download.py`: два документи набору специфікацій
   ECMAScript, ECMA-404 (JSON) і ECMA-414 (склад набору), Ecma видає тільки як PDF. Без `pypdf` решта
   практики працює як і працювала.
-- Курсовий `requirements.txt` перелічує ще й фреймворковий стек: langchain, langgraph, ragas. Практиці він
-  не потрібен, а ставиться довго й важко, тому набір тримається мінімальним. Знадобиться фреймворковий
-  стек — ставте його окремо і свідомо, прочитавши спершу наступний пункт.
+- `qdrant-client` потрібен лише курсовому `knowledge_qdrant.py`, який з'явився з оновленням курсу від
+  26 серпня 2026; практика говорить із сервером Qdrant через `urllib` і пакета не імпортує. Поставлено,
+  щоб курсовий файл запускався з цього ж оточення: `python knowledge_qdrant.py` (вбудований режим) і
+  `QDRANT_URL=http://localhost:6333 python knowledge_qdrant.py` (наш сервер, колекція `postal_rules`,
+  чотирнадцять точок) — обидва прогнано 26 серпня 2026.
+- Курсовий `requirements.txt` перелічує ще й фреймворковий стек langchain та langgraph, а ragas з
+  оновлення курсу від 26 серпня 2026 винесено в `requirements-eval.txt`. Практиці це не потрібне, а
+  ставиться довго й важко, тому набір тримається мінімальним. Знадобиться фреймворковий стек — ставте
+  його окремо і свідомо, прочитавши спершу наступний пункт.
 
 ## Версія anthropic закріплена на 0.122.* — не змінювати мовчки
 
