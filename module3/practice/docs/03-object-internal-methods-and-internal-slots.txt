@@ -1,0 +1,136 @@
+# 6.1.7.2 Object Internal Methods and Internal Slots
+# джерело: https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-object-internal-methods-and-internal-slots
+# отримано: 2026-08-25
+
+6.1.7.2 Object Internal Methods and Internal Slots
+
+The actual semantics of objects, in ECMAScript, are specified via algorithms called internal methods . Each object in an ECMAScript engine is associated with a set of internal methods that defines its runtime behaviour. These internal methods are not part of the ECMAScript language. They are defined by this specification purely for expository purposes. However, each object within an implementation of ECMAScript must behave as specified by the internal methods associated with it. The exact manner in which this is accomplished is determined by the implementation.
+
+Internal method names are polymorphic. This means that different object values may perform different algorithms when a common internal method name is invoked upon them. That actual object upon which an internal method is invoked is the “target” of the invocation. If, at runtime, the implementation of an algorithm attempts to use an internal method of an object that the object does not support, a TypeError exception is thrown.
+
+Internal slots correspond to internal state that is associated with objects, Symbols, or Private Names and used by various ECMAScript specification algorithms. Internal slots are not object properties and they are not inherited. Depending upon the specific internal slot specification, such state may consist of values of any ECMAScript language type or of specific ECMAScript specification type values. Unless explicitly specified otherwise, internal slots are allocated as part of the process of creating an object, Symbol, or Private Name and may not be dynamically added. Unless specified otherwise, the initial value of an internal slot is the value undefined . Various algorithms within this specification create values that have internal slots. However, the ECMAScript language provides no direct way to manipulate internal slots.
+
+All objects have an internal slot named [[PrivateElements]] , which is a List of PrivateElements . This List represents the values of the private fields, methods, and accessors for the object. Initially, it is an empty List .
+
+Internal methods and internal slots are identified within this specification using names enclosed in double square brackets [[ ]].
+
+Table 4 summarizes the essential internal methods used by this specification that are applicable to all objects created or manipulated by ECMAScript code. Every object must have algorithms for all of the essential internal methods. However, all objects do not necessarily use the same algorithms for those methods.
+
+An ordinary object is an object that satisfies all of the following criteria:
+
+-
+For the internal methods listed in Table 4 , the object uses those defined in 10.1 .
+
+-
+If the object has a [[Call]] internal method, it uses either the one defined in 10.2.1 or the one defined in 10.3.1 .
+
+-
+If the object has a [[Construct]] internal method, it uses either the one defined in 10.2.2 or the one defined in 10.3.2 .
+
+An exotic object is an object that is not an ordinary object .
+
+This specification recognizes different kinds of exotic objects by those objects' internal methods. An object that is behaviourally equivalent to a particular kind of exotic object (such as an Array exotic object or a bound function exotic object ), but does not have the same collection of internal methods specified for that kind, is not recognized as that kind of exotic object .
+
+The “Signature” column of Table 4 and other similar tables describes the invocation pattern for each internal method. The invocation pattern always includes a parenthesized list of descriptive parameter names. If a parameter name is the same as an ECMAScript type name then the name describes the required type of the parameter value. If an internal method explicitly returns a value, its parameter list is followed by the symbol “→” and the type name of the returned value. The type names used in signatures refer to the types defined in clause 6 augmented by the following additional names. “ any ” means the value may be any ECMAScript language type .
+
+In addition to its parameters, an internal method always has access to the object that is the target of the method invocation.
+
+An internal method implicitly returns a Completion Record , either a normal completion that wraps a value of the return type shown in its invocation pattern, or a throw completion .
+
+Table 4: Essential Internal Methods
+
+Internal Method
+
+Signature
+
+Description
+
+[[GetPrototypeOf]]
+
+( ) → Object | Null
+
+Determine the object that provides inherited properties for this object. A null value indicates that there are no inherited properties.
+
+[[SetPrototypeOf]]
+
+(Object | Null) → Boolean
+
+Associate this object with another object that provides inherited properties. Passing null indicates that there are no inherited properties. Returns true indicating that the operation was completed successfully or false indicating that the operation was not successful.
+
+[[IsExtensible]]
+
+( ) → Boolean
+
+Determine whether it is permitted to add additional properties to this object.
+
+[[PreventExtensions]]
+
+( ) → Boolean
+
+Control whether new properties may be added to this object. Returns true if the operation was successful or false if the operation was unsuccessful.
+
+[[GetOwnProperty]]
+
+( propertyKey ) → Undefined | Property Descriptor
+
+Return a Property Descriptor for the own property of this object whose key is propertyKey , or undefined if no such property exists.
+
+[[DefineOwnProperty]]
+
+( propertyKey , propertyDesc ) → Boolean
+
+Create or alter the own property, whose key is propertyKey , to have the state described by propertyDesc . Return true if that property was successfully created/updated or false if the property could not be created or updated.
+
+[[HasProperty]]
+
+( propertyKey ) → Boolean
+
+Return a Boolean value indicating whether this object already has either an own or inherited property whose key is propertyKey .
+
+[[Get]]
+
+( propertyKey , receiver ) → any
+
+Return the value of the property whose key is propertyKey from this object. If any ECMAScript code must be executed to retrieve the property value, receiver is used as the this value when evaluating the code.
+
+[[Set]]
+
+( propertyKey , value , receiver ) → Boolean
+
+Set the value of the property whose key is propertyKey to value . If any ECMAScript code must be executed to set the property value, receiver is used as the this value when evaluating the code. Returns true if the property value was set or false if it could not be set.
+
+[[Delete]]
+
+( propertyKey ) → Boolean
+
+Remove the own property whose key is propertyKey from this object. Return false if the property was not deleted and is still present. Return true if the property was deleted or is not present.
+
+[[OwnPropertyKeys]]
+
+( ) → List of property keys
+
+Return a List whose elements are all of the own property keys for the object.
+
+Table 5 summarizes additional essential internal methods that are supported by objects that may be called as functions. A function object is an object that supports the [[Call]] internal method. A constructor is an object that supports the [[Construct]] internal method. Every object that supports [[Construct]] must support [[Call]] ; that is, every constructor must be a function object . Therefore, a constructor may also be referred to as a constructor function or constructor function object .
+
+Table 5: Additional Essential Internal Methods of Function Objects
+
+Internal Method
+
+Signature
+
+Description
+
+[[Call]]
+
+( any , a List of any ) → any
+
+Executes code associated with this object. Invoked via a function call expression. The arguments to the internal method are a this value and a List whose elements are the arguments passed to the function by a call expression. Objects that implement this internal method are callable .
+
+[[Construct]]
+
+(a List of any , Object) → Object
+
+Creates an object. Invoked via the new operator or a super call. The first argument to the internal method is a List whose elements are the arguments of the constructor invocation or the super call. The second argument is the object to which the new operator was initially applied. Objects that implement this internal method are called constructors . A function object is not necessarily a constructor and such non- constructor function objects do not have a [[Construct]] internal method.
+
+The semantics of the essential internal methods for ordinary objects and standard exotic objects are specified in clause 10 . If any specified use of an internal method of an exotic object is not supported by an implementation, that usage must throw a TypeError exception when attempted.

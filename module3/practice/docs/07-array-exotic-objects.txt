@@ -1,0 +1,106 @@
+# 10.4.2 Array Exotic Objects
+# джерело: https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-array-exotic-objects
+# отримано: 2026-08-25
+
+10.4.2 Array Exotic Objects
+
+An Array is an exotic object that gives special treatment to array index property keys (see 6.1.7 ). A property whose property name is an array index is also called an element . Every Array has a non-configurable "length" property whose value is always a non-negative integral Number whose mathematical value is strictly less than 2 32 . The value of the "length" property is numerically greater than the name of every own property whose name is an array index ; whenever an own property of an Array is created or changed, other properties are adjusted as necessary to maintain this invariant. Specifically, whenever an own property is added whose name is an array index , the value of the "length" property is changed, if necessary, to be one more than the numeric value of that array index ; and whenever the value of the "length" property is changed, every own property whose name is an array index whose value is not smaller than the new length is deleted. This constraint applies only to own properties of an Array and is unaffected by "length" or array index properties that may be inherited from its prototypes.
+
+An object is an Array exotic object (or simply, an Array) if its [[DefineOwnProperty]] internal method uses the following implementation, and its other essential internal methods use the definitions found in 10.1 . These methods are installed in ArrayCreate .
+
+10.4.2.1 [[DefineOwnProperty]] ( propertyKey , propertyDesc )
+
+The [[DefineOwnProperty]] internal method of an Array exotic object array takes arguments propertyKey (a property key ) and propertyDesc (a Property Descriptor ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- If propertyKey is "length" , return ? ArraySetLength ( array , propertyDesc ).
+- If propertyKey is an array index , then - Let lengthDesc be OrdinaryGetOwnProperty ( array , "length" ).
+- Assert : lengthDesc is not undefined .
+- Assert : IsDataDescriptor ( lengthDesc ) is true .
+- Assert : lengthDesc . [[Configurable]] is false .
+- Let length be lengthDesc . [[Value]] .
+- Assert : length is a non-negative integral Number .
+- Let index be ! ToUint32 ( propertyKey ).
+- If index ≥ length and lengthDesc . [[Writable]] is false , return false .
+- Let succeeded be ! OrdinaryDefineOwnProperty ( array , propertyKey , propertyDesc ).
+- If succeeded is false , return false .
+- If index ≥ length , then - Set lengthDesc . [[Value]] to index + 1 𝔽 .
+- Set succeeded to ! OrdinaryDefineOwnProperty ( array , "length" , lengthDesc ).
+- Assert : succeeded is true .
+
+- Return true .
+
+- Return ? OrdinaryDefineOwnProperty ( array , propertyKey , propertyDesc ).
+
+10.4.2.2 ArrayCreate ( length [ , proto ] )
+
+The abstract operation ArrayCreate takes argument length (a non-negative integer ) and optional argument proto (an Object) and returns either a normal completion containing an Array exotic object or a throw completion . It is used to specify the creation of new Arrays. It performs the following steps when called:
+
+- If length > 2 32 - 1, throw a RangeError exception.
+- If proto is not present, set proto to %Array.prototype% .
+- Let array be MakeBasicObject (« [[Prototype]] , [[Extensible]] »).
+- Set array . [[Prototype]] to proto .
+- Set array . [[DefineOwnProperty]] as specified in 10.4.2.1 .
+- Perform ! OrdinaryDefineOwnProperty ( array , "length" , PropertyDescriptor { [[Value]] : 𝔽 ( length ), [[Writable]] : true , [[Enumerable]] : false , [[Configurable]] : false }).
+- Return array .
+
+10.4.2.3 ArraySpeciesCreate ( originalArray , length )
+
+The abstract operation ArraySpeciesCreate takes arguments originalArray (an Object) and length (a non-negative integer ) and returns either a normal completion containing an Object or a throw completion . It is used to specify the creation of a new Array or similar object using a constructor function that is derived from originalArray . It does not enforce that the constructor function returns an Array. It performs the following steps when called:
+
+- Let isArray be ? IsArray ( originalArray ).
+- If isArray is false , return ? ArrayCreate ( length ).
+- Let ctor be ? Get ( originalArray , "constructor" ).
+- If IsConstructor ( ctor ) is true , then - Let thisRealm be the current Realm Record .
+- Let ctorRealm be ? GetFunctionRealm ( ctor ).
+- If thisRealm and ctorRealm are not the same Realm Record , then - If SameValue ( ctor , ctorRealm . [[Intrinsics]] .[[ %Array% ]]) is true , set ctor to undefined .
+
+- If ctor is an Object , then - Set ctor to ? Get ( ctor , %Symbol.species% ).
+- If ctor is null , set ctor to undefined .
+
+- If ctor is undefined , return ? ArrayCreate ( length ).
+- If IsConstructor ( ctor ) is false , throw a TypeError exception.
+- Return ? Construct ( ctor , « 𝔽 ( length ) »).
+
+Note
+If originalArray was created using the standard built-in Array constructor for a realm that is not the realm of the running execution context , then a new Array is created using the realm of the running execution context . This maintains compatibility with Web browsers that have historically had that behaviour for the Array.prototype methods that now are defined using ArraySpeciesCreate.
+
+10.4.2.4 ArraySetLength ( array , propertyDesc )
+
+The abstract operation ArraySetLength takes arguments array (an Array) and propertyDesc (a Property Descriptor ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- If propertyDesc does not have a [[Value]] field, then - Return ! OrdinaryDefineOwnProperty ( array , "length" , propertyDesc ).
+
+- Let newLengthDesc be a copy of propertyDesc .
+- Let newLength be ? ToUint32 ( propertyDesc . [[Value]] ).
+- Let numberLength be ? ToNumber ( propertyDesc . [[Value]] ).
+- If SameValueZero ( newLength , numberLength ) is false , throw a RangeError exception.
+- Set newLengthDesc . [[Value]] to newLength .
+- Let oldLengthDesc be OrdinaryGetOwnProperty ( array , "length" ).
+- Assert : oldLengthDesc is not undefined .
+- Assert : IsDataDescriptor ( oldLengthDesc ) is true .
+- Assert : oldLengthDesc . [[Configurable]] is false .
+- Let oldLength be oldLengthDesc . [[Value]] .
+- If newLength ≥ oldLength , then - Return ! OrdinaryDefineOwnProperty ( array , "length" , newLengthDesc ).
+
+- If oldLengthDesc . [[Writable]] is false , return false .
+- If newLengthDesc does not have a [[Writable]] field or newLengthDesc . [[Writable]] is true , then - Let newWritable be true .
+
+- Else, - NOTE : Setting the [[Writable]] attribute to false is deferred in case any elements cannot be deleted.
+- Let newWritable be false .
+- Set newLengthDesc . [[Writable]] to true .
+
+- Let succeeded be ! OrdinaryDefineOwnProperty ( array , "length" , newLengthDesc ).
+- If succeeded is false , return false .
+- For each own property key propertyKey of array such that propertyKey is an array index and ! ToUint32 ( propertyKey ) ≥ newLength , in descending numeric index order, do - Let deleteSucceeded be ! array . [[Delete]] ( propertyKey ).
+- If deleteSucceeded is false , then - Set newLengthDesc . [[Value]] to ! ToUint32 ( propertyKey ) + 1 𝔽 .
+- If newWritable is false , set newLengthDesc . [[Writable]] to false .
+- Perform ! OrdinaryDefineOwnProperty ( array , "length" , newLengthDesc ).
+- Return false .
+
+- If newWritable is false , then - Set succeeded to ! OrdinaryDefineOwnProperty ( array , "length" , PropertyDescriptor { [[Writable]] : false }).
+- Assert : succeeded is true .
+
+- Return true .
+
+Note
+In steps 3 and 4 , if propertyDesc . [[Value]] is an object then its valueOf method is called twice. This is legacy behaviour that was specified with this effect starting with the 2 nd Edition of this specification.

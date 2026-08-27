@@ -1,0 +1,76 @@
+# 10.4.3 String Exotic Objects
+# джерело: https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-string-exotic-objects
+# отримано: 2026-08-25
+
+10.4.3 String Exotic Objects
+
+A String object is an exotic object that encapsulates a String value and exposes virtual integer-indexed data properties corresponding to the individual code unit elements of the String value. String exotic objects always have a data property named "length" whose value is the length of the encapsulated String value. Both the code unit data properties and the "length" property are non-writable and non-configurable.
+
+An object is a String exotic object (or simply, a String object) if its [[GetOwnProperty]] , [[DefineOwnProperty]] , and [[OwnPropertyKeys]] internal methods use the following implementations, and its other essential internal methods use the definitions found in 10.1 . These methods are installed in StringCreate .
+
+String exotic objects have the same internal slots as ordinary objects . They also have a [[StringData]] internal slot.
+
+10.4.3.1 [[GetOwnProperty]] ( propertyKey )
+
+The [[GetOwnProperty]] internal method of a String exotic object string takes argument propertyKey (a property key ) and returns a normal completion containing either a Property Descriptor or undefined . It performs the following steps when called:
+
+- Let propertyDesc be OrdinaryGetOwnProperty ( string , propertyKey ).
+- If propertyDesc is not undefined , return propertyDesc .
+- Return StringGetOwnProperty ( string , propertyKey ).
+
+10.4.3.2 [[DefineOwnProperty]] ( propertyKey , propertyDesc )
+
+The [[DefineOwnProperty]] internal method of a String exotic object string takes arguments propertyKey (a property key ) and propertyDesc (a Property Descriptor ) and returns a normal completion containing a Boolean. It performs the following steps when called:
+
+- Let stringDesc be StringGetOwnProperty ( string , propertyKey ).
+- If stringDesc is not undefined , then - Let extensible be string . [[Extensible]] .
+- Return IsCompatiblePropertyDescriptor ( extensible , propertyDesc , stringDesc ).
+
+- Return ! OrdinaryDefineOwnProperty ( string , propertyKey , propertyDesc ).
+
+10.4.3.3 [[OwnPropertyKeys]] ( )
+
+The [[OwnPropertyKeys]] internal method of a String exotic object obj takes no arguments and returns a normal completion containing a List of property keys . It performs the following steps when called:
+
+- Let keys be a new empty List .
+- Let string be obj . [[StringData]] .
+- Assert : string is a String .
+- Let length be the length of string .
+- For each integer i such that 0 ≤ i < length , in ascending order, do - Append ! ToString ( 𝔽 ( i )) to keys .
+
+- For each own property key propertyKey of obj such that propertyKey is an array index and ! ToIntegerOrInfinity ( propertyKey ) ≥ length , in ascending numeric index order, do - Append propertyKey to keys .
+
+- For each own property key propertyKey of obj such that propertyKey is a String and propertyKey is not an array index , in ascending chronological order of property creation, do - Append propertyKey to keys .
+
+- For each own property key propertyKey of obj such that propertyKey is a Symbol , in ascending chronological order of property creation, do - Append propertyKey to keys .
+
+- Return keys .
+
+10.4.3.4 StringCreate ( value , proto )
+
+The abstract operation StringCreate takes arguments value (a String) and proto (an Object) and returns a String exotic object . It is used to specify the creation of new String exotic objects . It performs the following steps when called:
+
+- Let string be MakeBasicObject (« [[Prototype]] , [[Extensible]] , [[StringData]] »).
+- Set string . [[Prototype]] to proto .
+- Set string . [[StringData]] to value .
+- Set string . [[GetOwnProperty]] as specified in 10.4.3.1 .
+- Set string . [[DefineOwnProperty]] as specified in 10.4.3.2 .
+- Set string . [[OwnPropertyKeys]] as specified in 10.4.3.3 .
+- Let length be the length of value .
+- Perform ! DefinePropertyOrThrow ( string , "length" , PropertyDescriptor { [[Value]] : 𝔽 ( length ), [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }).
+- Return string .
+
+10.4.3.5 StringGetOwnProperty ( string , propertyKey )
+
+The abstract operation StringGetOwnProperty takes arguments string (an Object that has a [[StringData]] internal slot) and propertyKey (a property key ) and returns a Property Descriptor or undefined . It performs the following steps when called:
+
+- If propertyKey is not a String , return undefined .
+- Let numericIndex be CanonicalNumericIndexString ( propertyKey ).
+- If numericIndex is not an integral Number , return undefined .
+- If numericIndex is -0 𝔽 or numericIndex < -0 𝔽 , return undefined .
+- Let stringData be string . [[StringData]] .
+- Assert : stringData is a String .
+- Let length be the length of stringData .
+- If ℝ ( numericIndex ) ≥ length , return undefined .
+- Let resultString be the substring of stringData from ℝ ( numericIndex ) to ℝ ( numericIndex ) + 1.
+- Return the PropertyDescriptor { [[Value]] : resultString , [[Writable]] : false , [[Enumerable]] : true , [[Configurable]] : false }.

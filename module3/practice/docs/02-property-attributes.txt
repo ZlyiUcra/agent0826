@@ -1,0 +1,75 @@
+# 6.1.7.1 Property Attributes
+# джерело: https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-property-attributes
+# отримано: 2026-08-25
+
+6.1.7.1 Property Attributes
+
+Attributes are used in this specification to define and explain the state of Object properties as described in Table 3 . Unless specified explicitly, the initial value of each attribute is its Default Value.
+
+Table 3: Attributes of an Object property
+
+Attribute Name
+Types of property for which it is present
+Value Domain
+Default Value
+Description
+
+[[Value]]
+
+data property
+
+an ECMAScript language value
+
+undefined
+
+The value retrieved by a get access of the property.
+
+[[Writable]]
+
+data property
+
+a Boolean
+
+false
+
+If false , attempts by ECMAScript code to change the property's [[Value]] attribute using [[Set]] will not succeed.
+
+[[Getter]]
+
+accessor property
+
+a function object or undefined
+
+undefined
+
+If the value is not undefined , its [[Call]] internal method ( Table 5 ) is called with an empty arguments list to retrieve the property value each time a get access of the property is performed.
+
+[[Setter]]
+
+accessor property
+
+a function object or undefined
+
+undefined
+
+If the value is not undefined , its [[Call]] internal method ( Table 5 ) is called with an arguments list containing the assigned value as its sole argument each time a set access of the property is performed. The effect of a property's [[Setter]] internal method may, but is not required to, have an effect on the value returned by subsequent calls to the property's [[Getter]] internal method.
+
+[[Enumerable]]
+
+data property or accessor property
+
+a Boolean
+
+false
+
+If true , the property will be enumerated by a for-in enumeration (see 14.7.5 ). Otherwise, the property is said to be non-enumerable.
+
+[[Configurable]]
+
+data property or accessor property
+
+a Boolean
+
+false
+
+If false , attempts to delete the property, change it from a data property to an accessor property or from an accessor property to a data property , or make any changes to its attributes (other than replacing an existing [[Value]] or setting [[Writable]] to false ) will fail.

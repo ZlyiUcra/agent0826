@@ -1,0 +1,179 @@
+# 6.1.7.3 Invariants of the Essential Internal Methods
+# джерело: https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-invariants-of-the-essential-internal-methods
+# отримано: 2026-08-25
+
+6.1.7.3 Invariants of the Essential Internal Methods
+
+The Internal Methods of Objects of an ECMAScript engine must conform to the list of invariants specified below. Ordinary ECMAScript Objects as well as all standard exotic objects in this specification maintain these invariants. ECMAScript Proxy objects maintain these invariants by means of runtime checks on the result of traps invoked on the [[ProxyHandler]] object.
+
+Any implementation provided exotic objects must also maintain these invariants for those objects. Violation of these invariants may cause ECMAScript code to have unpredictable behaviour and create security issues. However, violation of these invariants must never compromise the memory safety of an implementation.
+
+An implementation must not allow these invariants to be circumvented in any manner such as by providing alternative interfaces that implement the functionality of the essential internal methods without enforcing their invariants.
+
+Definitions:
+
+-
+The target of an internal method is the object upon which the internal method is called.
+
+-
+A target is non-extensible if it has been observed to return false from its [[IsExtensible]] internal method, or true from its [[PreventExtensions]] internal method.
+
+-
+A non-existent property is a property that does not exist as an own property on a non-extensible target.
+
+-
+All references to SameValue are according to the definition of the SameValue algorithm.
+
+Return value:
+
+The value returned by any internal method must be a Completion Record with either:
+
+- [[Type]] = normal , [[Target]] = empty , and [[Value]] = a value of the “normal return type” shown below for that internal method, or
+
+- [[Type]] = throw , [[Target]] = empty , and [[Value]] = any ECMAScript language value .
+
+Note 1
+An internal method must not return a continue completion , a break completion , or a return completion .
+
+[[GetPrototypeOf]] ( )
+
+-
+The normal return type is either Object or Null.
+
+-
+If target is non-extensible, and [[GetPrototypeOf]] returns a value proto , then any future calls to [[GetPrototypeOf]] should return the SameValue as proto .
+
+Note 2
+An object's prototype chain should have finite length (that is, starting from any object, recursively applying the [[GetPrototypeOf]] internal method to its result should eventually lead to the value null ). However, this requirement is not enforceable as an object level invariant if the prototype chain includes any exotic objects that do not use the ordinary object definition of [[GetPrototypeOf]] . Such a circular prototype chain may result in infinite loops when accessing object properties.
+
+[[SetPrototypeOf]] ( proto )
+
+-
+The normal return type is Boolean.
+
+-
+If target is non-extensible, [[SetPrototypeOf]] must return false , unless proto is the SameValue as the target's observed [[GetPrototypeOf]] value.
+
+[[IsExtensible]] ( )
+
+-
+The normal return type is Boolean.
+
+-
+If [[IsExtensible]] returns false , all future calls to [[IsExtensible]] on the target must return false .
+
+[[PreventExtensions]] ( )
+
+-
+The normal return type is Boolean.
+
+-
+If [[PreventExtensions]] returns true , all future calls to [[IsExtensible]] on the target must return false and the target is now considered non-extensible.
+
+[[GetOwnProperty]] ( propertyKey )
+
+-
+The normal return type is either Property Descriptor or Undefined.
+
+-
+If the return value is a Property Descriptor , it must be a fully populated Property Descriptor .
+
+-
+If propertyKey is described as a non-configurable, non-writable own data property , all future calls to [[GetOwnProperty]] ( propertyKey ) must return Property Descriptor whose [[Value]] is SameValue as propertyKey 's [[Value]] attribute.
+
+-
+If propertyKey 's attributes other than [[Writable]] and [[Value]] may change over time, or if the property might be deleted, then propertyKey 's [[Configurable]] attribute must be true .
+
+-
+If the [[Writable]] attribute may change from false to true , then the [[Configurable]] attribute must be true .
+
+-
+If the target is non-extensible and propertyKey is non-existent, then all future calls to [[GetOwnProperty]] ( propertyKey ) on the target must describe propertyKey as non-existent (i.e. [[GetOwnProperty]] ( propertyKey ) must return undefined ).
+
+Note 3
+As a consequence of the third invariant, if a property is described as a data property and it may return different values over time, then either or both of the [[Writable]] and [[Configurable]] attributes must be true even if no mechanism to change the value is exposed via the other essential internal methods.
+
+[[DefineOwnProperty]] ( propertyKey , propertyDesc )
+
+-
+The normal return type is Boolean.
+
+-
+[[DefineOwnProperty]] must return false if propertyKey has previously been observed as a non-configurable own property of the target, unless either:
+
+-
+propertyKey is a writable data property . A non-configurable writable data property can be changed into a non-configurable non-writable data property .
+
+-
+All attributes of propertyDesc are the SameValue as propertyKey 's attributes.
+
+-
+[[DefineOwnProperty]] ( propertyKey , propertyDesc ) must return false if target is non-extensible and propertyKey is a non-existent own property. That is, a non-extensible target object cannot be extended with new properties.
+
+[[HasProperty]] ( propertyKey )
+
+-
+The normal return type is Boolean.
+
+-
+If propertyKey was previously observed as a non-configurable own data or accessor property of the target, [[HasProperty]] must return true .
+
+[[Get]] ( propertyKey , receiver )
+
+-
+The normal return type is any ECMAScript language type .
+
+-
+If propertyKey was previously observed as a non-configurable, non-writable own data property of the target with value value , then [[Get]] must return the SameValue as value .
+
+-
+If propertyKey was previously observed as a non-configurable own accessor property of the target whose [[Getter]] attribute is undefined , the [[Get]] operation must return undefined .
+
+[[Set]] ( propertyKey , value , receiver )
+
+-
+The normal return type is Boolean.
+
+-
+If propertyKey was previously observed as a non-configurable, non-writable own data property of the target, then [[Set]] must return false unless value is the SameValue as propertyKey 's [[Value]] attribute.
+
+-
+If propertyKey was previously observed as a non-configurable own accessor property of the target whose [[Setter]] attribute is undefined , the [[Set]] operation must return false .
+
+[[Delete]] ( propertyKey )
+
+-
+The normal return type is Boolean.
+
+-
+If propertyKey was previously observed as a non-configurable own data or accessor property of the target, [[Delete]] must return false .
+
+[[OwnPropertyKeys]] ( )
+
+-
+The normal return type is List .
+
+-
+The returned List must not contain any duplicate entries.
+
+-
+Each element of the returned List must be a property key .
+
+-
+The returned List must contain at least the keys of all non-configurable own properties that have previously been observed.
+
+-
+If the target is non-extensible, the returned List must contain only the keys of all own properties of the target that are observable using [[GetOwnProperty]] .
+
+[[Call]] ( )
+
+-
+The normal return type is any ECMAScript language type .
+
+[[Construct]] ( )
+
+-
+The normal return type is Object.
+
+-
+The target must also have a [[Call]] internal method.

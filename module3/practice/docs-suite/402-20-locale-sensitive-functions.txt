@@ -1,0 +1,485 @@
+# 20 Locale Sensitive Functions of the ECMAScript Language Specification
+# джерело: https://tc39.es/ecma402/#locale-sensitive-functions
+# отримано: 2026-08-26
+
+20 Locale Sensitive Functions of the ECMAScript Language Specification
+
+ECMA-262 describes several locale-sensitive functions. An ECMAScript implementation that implements this specification shall implement these functions as described here.
+
+Note
+The Collator, NumberFormat, or DateTimeFormat objects created in the algorithms in this clause are only used within these algorithms. They are never directly accessed by ECMAScript code and need not actually exist within an implementation.
+
+20.1 Properties of the String Prototype Object
+
+20.1.1 String.prototype.localeCompare ( that [ , locales [ , options ] ] )
+
+This definition supersedes the definition provided in ECMA-262 , 22.1.3.12 .
+
+When the localeCompare method is called with argument that and optional arguments locales , and options , the following steps are taken:
+
+- Let thisValue be ? RequireObjectCoercible ( this value).
+
+- Let string be ? ToString ( thisValue ).
+
+- Let thatValue be ? ToString ( that ).
+
+- Let collator be ? Construct ( %Intl.Collator% , « locales , options »).
+
+- Return CompareStrings ( collator , string , thatValue ).
+
+The "length" property of this function is 1 𝔽 .
+
+Note 1
+The localeCompare method itself is not directly suitable as an argument to Array.prototype.sort because the latter requires a function of two arguments.
+
+Note 2
+The localeCompare function is intentionally generic; it does not require that its this value be a String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+
+20.1.2 String.prototype.toLocaleLowerCase ( [ locales ] )
+
+This definition supersedes the definition provided in ECMA-262 , 22.1.3.26 .
+
+This function interprets a String value as a sequence of code points, as described in ECMA-262 , 6.1.4 . The following steps are taken:
+
+- Let thisValue be ? RequireObjectCoercible ( this value).
+
+- Let string be ? ToString ( thisValue ).
+
+- Return ? TransformCase ( string , locales , lower ).
+
+Note
+The toLocaleLowerCase function is intentionally generic; it does not require that its this value be a String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+
+20.1.2.1 TransformCase ( string , locales , targetCase )
+
+The abstract operation TransformCase takes arguments string (a String), locales (an ECMAScript language value ), and targetCase ( lower or upper ). It interprets string as a sequence of UTF-16 encoded code points, as described in ECMA-262 , 6.1.4 , and returns the result of ILD transformation into targetCase as a new String value. It performs the following steps when called:
+
+- Let requestedLocales be ? CanonicalizeLocaleList ( locales ).
+
+- If requestedLocales is not an empty List , then
+- Let requestedLocale be requestedLocales [0].
+
+- Else,
+- Let requestedLocale be DefaultLocale ().
+
+- Let availableLocales be an Available Locales List which includes the language tags for which the Unicode Character Database contains language-sensitive case mappings. If the implementation supports additional locale-sensitive case mappings, availableLocales should also include their corresponding language tags .
+
+- Let match be LookupMatchingLocaleByPrefix ( availableLocales , « requestedLocale »).
+
+- If match is not undefined , let locale be match . [[locale]] ; else let locale be "und" .
+
+- Let codePoints be StringToCodePoints ( string ).
+
+- If targetCase is lower , then
+- Let newCodePoints be a List whose elements are the result of a lowercase transformation of codePoints according to an implementation-derived algorithm using locale or the Unicode Default Case Conversion algorithm.
+
+- Else,
+- Assert : targetCase is upper .
+
+- Let newCodePoints be a List whose elements are the result of an uppercase transformation of codePoints according to an implementation-derived algorithm using locale or the Unicode Default Case Conversion algorithm.
+
+- Return CodePointsToString ( newCodePoints ).
+
+Code point mappings may be derived according to a tailored version of the Default Case Conversion Algorithms of the Unicode Standard. Implementations may use locale-sensitive tailoring defined in the file SpecialCasing.txt of the Unicode Character Database and/or CLDR and/or any other custom tailoring. Regardless of tailoring, a conforming implementation's case transformation algorithm must always yield the same result given the same input code points, locale, and target case.
+
+Note
+The case mapping of some code points may produce multiple code points, and therefore the result may not be the same length as the input. Because both toLocaleUpperCase and toLocaleLowerCase have context-sensitive behaviour, the functions are not symmetrical. In other words, s.toLocaleUpperCase().toLocaleLowerCase() is not necessarily equal to s.toLocaleLowerCase() and s.toLocaleLowerCase().toLocaleUpperCase() is not necessarily equal to s.toLocaleUpperCase() .
+
+20.1.3 String.prototype.toLocaleUpperCase ( [ locales ] )
+
+This definition supersedes the definition provided in ECMA-262 , 22.1.3.27 .
+
+This function interprets a String value as a sequence of code points, as described in ECMA-262 , 6.1.4 . The following steps are taken:
+
+- Let thisValue be ? RequireObjectCoercible ( this value).
+
+- Let string be ? ToString ( thisValue ).
+
+- Return ? TransformCase ( string , locales , upper ).
+
+Note
+The toLocaleUpperCase function is intentionally generic; it does not require that its this value be a String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+
+20.2 Properties of the Number Prototype Object
+
+The following definition(s) refer to the abstract operation thisNumberValue as defined in ECMA-262 , 21.1.3 .
+
+20.2.1 Number.prototype.toLocaleString ( [ locales [ , options ] ] )
+
+This definition supersedes the definition provided in ECMA-262 , 21.1.3.4 .
+
+When the toLocaleString method is called with optional arguments locales and options , the following steps are taken:
+
+- Let x be ? ThisNumberValue ( this value).
+
+- Let numberFormat be ? Construct ( %Intl.NumberFormat% , « locales , options »).
+
+- Return FormatNumeric ( numberFormat , ! ToIntlMathematicalValue ( x )).
+
+20.3 Properties of the BigInt Prototype Object
+
+The following definition(s) refer to the abstract operation thisBigIntValue as defined in ECMA-262 , 21.2.3 .
+
+20.3.1 BigInt.prototype.toLocaleString ( [ locales [ , options ] ] )
+
+This definition supersedes the definition provided in ECMA-262 , 21.2.3.2 .
+
+When the toLocaleString method is called with optional arguments locales and options , the following steps are taken:
+
+- Let x be ? ThisBigIntValue ( this value).
+
+- Let numberFormat be ? Construct ( %Intl.NumberFormat% , « locales , options »).
+
+- Return FormatNumeric ( numberFormat , ℝ ( x )).
+
+20.4 Properties of the Date Prototype Object
+
+The following definition(s) refer to the abstract operation thisTimeValue as defined in ECMA-262 , 21.4.4 .
+
+20.4.1 Date.prototype.toLocaleString ( [ locales [ , options ] ] )
+
+This definition supersedes the definition provided in ECMA-262 , 21.4.4.39 .
+
+When the toLocaleString method is called with optional arguments locales and options , the following steps are taken:
+
+- Let dateObj be the this value.
+
+- Perform ? RequireInternalSlot ( dateObj , [[DateValue]] ).
+
+- Let x be dateObj . [[DateValue]] .
+
+- If x is NaN , return "Invalid Date" .
+
+- Let dateFormat be ? CreateDateTimeFormat ( %Intl.DateTimeFormat% , locales , options , any , all ).
+
+- Return ! FormatDateTime ( dateFormat , x ).
+
+20.4.2 Date.prototype.toLocaleDateString ( [ locales [ , options ] ] )
+
+This definition supersedes the definition provided in Date.prototype.toLocaleDateString ( [ reserved1 [ , reserved2 ] ] ) .
+
+When the toLocaleDateString method is called with optional arguments locales and options , the following steps are taken:
+
+- Let dateObj be the this value.
+
+- Perform ? RequireInternalSlot ( dateObj , [[DateValue]] ).
+
+- Let x be dateObj . [[DateValue]] .
+
+- If x is NaN , return "Invalid Date" .
+
+- Let dateFormat be ? CreateDateTimeFormat ( %Intl.DateTimeFormat% , locales , options , date , date ).
+
+- Return ! FormatDateTime ( dateFormat , x ).
+
+20.4.3 Date.prototype.toLocaleTimeString ( [ locales [ , options ] ] )
+
+This definition supersedes the definition provided in Date.prototype.toLocaleTimeString ( [ reserved1 [ , reserved2 ] ] ) .
+
+When the toLocaleTimeString method is called with optional arguments locales and options , the following steps are taken:
+
+- Let dateObj be the this value.
+
+- Perform ? RequireInternalSlot ( dateObj , [[DateValue]] ).
+
+- Let x be dateObj . [[DateValue]] .
+
+- If x is NaN , return "Invalid Date" .
+
+- Let timeFormat be ? CreateDateTimeFormat ( %Intl.DateTimeFormat% , locales , options , time , time ).
+
+- Return ! FormatDateTime ( timeFormat , x ).
+
+20.5 Properties of the Array Prototype Object
+
+20.5.1 Array.prototype.toLocaleString ( [ locales [ , options ] ] )
+
+This definition supersedes the definition provided in Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] ) .
+
+When the toLocaleString method is called with optional arguments locales and options , the following steps are taken:
+
+- Let array be ? ToObject ( this value).
+
+- Let length be ? LengthOfArrayLike ( array ).
+
+- Let separator be the implementation-defined list-separator String value appropriate for the host environment 's current locale (such as ", " ).
+
+- Let result be the empty String.
+
+- Let k be 0.
+
+- Repeat, while k < length ,
+- If k > 0, then
+- Set result to the string-concatenation of result and separator .
+
+- Let element be ? Get ( array , ! ToString ( 𝔽 ( k ))).
+
+- If element is neither undefined nor null , then
+- Let elementString be ? ToString (? Invoke ( element , "toLocaleString" , « locales , options »)).
+
+- Set result to the string-concatenation of result and elementString .
+
+- Set k to k + 1.
+
+- Return result .
+
+Note 1
+This algorithm's steps mirror the steps taken in Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] ) , with the exception that Invoke ( nextElement , "toLocaleString" ) now takes locales and options as arguments.
+
+Note 2
+The elements of the array are converted to Strings using their toLocaleString methods, and these Strings are then concatenated, separated by occurrences of an implementation-defined locale-sensitive separator String. This function is analogous to toString except that it is intended to yield a locale-sensitive result corresponding with conventions of the host environment 's current locale.
+
+Note 3
+The toLocaleString function is intentionally generic; it does not require that its this value be an Array object. Therefore it can be transferred to other kinds of objects for use as a method.
+
+Annex A (informative) Implementation Dependent Behaviour
+
+The following aspects of this specification are implementation dependent:
+
+-
+In all functionality:
+
+-
+Additional values for some properties of options arguments ( 2 )
+
+-
+The default locale ( 6.2.3 )
+
+-
+The set of available locales for each constructor ( 9.1 )
+
+-
+The LookupMatchingLocaleByBestFit algorithm ( 9.2.4 )
+
+-
+In Collator:
+
+-
+Support for the Unicode extensions keys "kf" , "kn" and the parallel options properties "caseFirst" , "numeric" ( 10.1.1 )
+
+-
+The set of supported "co" key values (collations) per locale beyond a default collation ( 10.2.3 )
+
+-
+The set of supported "kf" key values (case order) per locale ( 10.2.3 )
+
+-
+The set of supported "kn" key values (numeric collation) per locale ( 10.2.3 )
+
+-
+The default search sensitivity per locale ( 10.2.3 )
+
+-
+The default ignore punctuation value per locale ( 10.2.3 )
+
+-
+The sort order for each supported locale and options combination ( 10.3.3.1 )
+
+- In DateTimeFormat:
+
+-
+The BestFitFormatMatcher algorithm ( 11.1.2 )
+
+-
+The set of supported "ca" key values (calendars) per locale ( 11.2.3 )
+
+-
+The set of supported "nu" key values (numbering systems) per locale ( 11.2.3 )
+
+-
+The default hourCycle setting per locale ( 11.2.3 )
+
+-
+The set of supported date-time formats per locale beyond a core set, including the representations used for each component and the associated patterns ( 11.2.3 )
+
+-
+Localized weekday names, era names, month names, day period names, am/pm indicators, and time zone names ( 11.5.5 )
+
+-
+The calendric calculations used for calendars other than "gregory" ( 11.5.12 )
+
+-
+The set of all known registered Zone and Link names of the IANA Time Zone Database and the information about their offsets from UTC and their daylight saving time rules ( 21.4.1.19 )
+
+-
+In DisplayNames:
+
+-
+The localized names ( 12.2.3 )
+
+-
+In DurationFormat:
+
+-
+The set of supported "nu" key values (numbering systems) per locale ( 13.2.3 )
+
+-
+The digital formatting configuration (use of two-digit hours with style "numeric" and separators for numeric hours, minutes, and seconds) per locale ( 13.2.3 )
+
+-
+In ListFormat:
+
+-
+The patterns used for formatting values ( 14.2.3 )
+
+-
+In Locale:
+
+-
+Support for the Unicode extensions keys "kf" , "kn" and the parallel options properties "caseFirst" , "numeric" ( 15.1.1 )
+
+-
+The set of preferred calendars ( 15.5.9 ), collations ( 15.5.10 ), hour cycles ( 15.5.11 ), numbering systems ( 15.5.12 ), and time zones ( 15.5.13 ) per locale
+
+-
+The default general ordering of characters within a line per locale ( 15.5.14 )
+
+-
+The first day of each week and which days of the week are considered as part of the weekend, for calendar purposes, per locale ( 15.5.17 )
+
+-
+In NumberFormat:
+
+-
+The set of supported "nu" key values (numbering systems) per locale ( 16.2.3 )
+
+-
+The patterns used for formatting values as decimal, percent, currency, or unit values per locale, with or without the sign, with or without accounting format for currencies, and in standard, compact, or scientific notation ( 16.5.6 )
+
+-
+The number of fractional digits used when formatting currency values ( 16.5.6 )
+
+-
+Localized representations of NaN and Infinity ( 16.5.6 )
+
+-
+The implementation of numbering systems not listed in Table 30 ( 16.5.6 )
+
+-
+Localized decimal and grouping separators ( 16.5.6 )
+
+-
+Localized plus and minus signs ( 16.5.6 )
+
+-
+Localized digit grouping schemata ( 16.5.6 )
+
+-
+Localized magnitude thresholds for compact notation ( 16.5.6 )
+
+-
+Localized symbols for compact and scientific notation ( 16.5.6 )
+
+-
+Localized narrow, short, and long currency symbols and names ( 16.5.6 )
+
+-
+Localized narrow, short, and long unit symbols ( 16.5.6 )
+
+-
+In PluralRules:
+
+-
+List of Strings representing the possible results of plural selection and their corresponding order per locale. ( 17.1.1 )
+
+-
+In RelativeTimeFormat:
+
+-
+The set of supported "nu" key values (numbering systems) per locale ( 18.2.3 )
+
+-
+The patterns used for formatting values ( 18.2.3 )
+
+-
+In Segmenter:
+
+-
+Boundary determination algorithms ( 19.8.1 )
+
+-
+Classification of segments as "word-like" ( 19.7.1 )
+
+Annex B (informative) Additions and Changes That Introduce Incompatibilities with Prior Editions
+
+-
+10.1 , 16.1 , 11.1 In ECMA-402, 1 st Edition, constructors could be used to create Intl objects from arbitrary objects. This is no longer possible in 2nd Edition.
+
+-
+11.3.3 In ECMA-402, 1 st Edition, the "length" property of the function object F was set to +0 𝔽 . In 2nd Edition, "length" is set to 1 𝔽 .
+
+-
+10.3.4 In ECMA-402, 7 th Edition, the %Symbol.toStringTag% property of Intl.Collator.prototype was set to "Object" . In 8 th Edition, %Symbol.toStringTag% is set to "Intl.Collator" .
+
+-
+11.3.7 In ECMA-402, 7 th Edition, the %Symbol.toStringTag% property of Intl.DateTimeFormat.prototype was set to "Object" . In 8 th Edition, %Symbol.toStringTag% is set to "Intl.DateTimeFormat" .
+
+-
+16.3.7 In ECMA-402, 7 th Edition, the %Symbol.toStringTag% property of Intl.NumberFormat.prototype was set to "Object" . In 8 th Edition, %Symbol.toStringTag% is set to "Intl.NumberFormat" .
+
+-
+17.3.5 In ECMA-402, 7 th Edition, the %Symbol.toStringTag% property of Intl.PluralRules.prototype was set to "Object" . In 8 th Edition, %Symbol.toStringTag% is set to "Intl.PluralRules" .
+
+-
+8.1.1 In ECMA-402, 7 th Edition, the %Symbol.toStringTag% property of Intl was not defined. In 8 th Edition, %Symbol.toStringTag% is set to "Intl" .
+
+-
+16.1 In ECMA-402, 8 th Edition, the NumberFormat constructor used to throw an error when style is "currency" and maximumFractionDigits was set to a value lower than the default fractional digits for that currency. This behaviour was corrected in the 9 th edition, and it no longer throws an error.
+
+Annex C (informative) Colophon
+
+This specification is authored on GitHub in a plaintext source format called Ecmarkup . Ecmarkup is an HTML and Markdown dialect that provides a framework and toolset for authoring ECMAScript specifications in plaintext and processing the specification into a full-featured HTML rendering that follows the editorial conventions for this document. Ecmarkup builds on and integrates a number of other formats and technologies including Grammarkdown for defining syntax and Ecmarkdown for authoring algorithm steps. PDF renderings of this specification are produced using a print stylesheet which takes advantage of the CSS Paged Media specification and is converted using PrinceXML .
+
+Prior editions of this specification were authored using Word—the Ecmarkup source text that formed the basis of this edition was produced by converting the ECMAScript 2015 Word document to Ecmarkup using an automated conversion tool.
+
+Copyright & Software License
+
+Ecma International
+
+Rue du Rhone 114
+
+CH-1204 Geneva
+
+Tel: +41 22 849 6000
+
+Fax: +41 22 849 6001
+
+Web: https://ecma-international.org/
+
+Copyright Notice
+COPYRIGHT NOTICE
+
+© 2026 Ecma International
+
+By obtaining and/or copying this work, you (the licensee) agree that you have read, understood, and will comply with the following terms and conditions.
+
+This document may be copied, published and distributed to others, and certain derivative works of it may be prepared, copied, published, and distributed, in whole or in part, provided that the above copyright notice and this Copyright License and Disclaimer are included on all such copies and derivative works. The only derivative works that are permissible under this Copyright License and Disclaimer are:
+
+(i) works which incorporate all or portion of this document for the purpose of providing commentary or explanation (such as an annotated version of the document),
+
+(ii) works which incorporate all or portion of this document for the purpose of incorporating features that provide accessibility,
+
+(iii) translations of this document into languages other than English and into different formats and
+
+(iv) works by making use of this specification in standard conformant products by implementing (e.g. by copy and paste wholly or partly) the functionality therein.
+
+However, the content of this document itself may not be modified in any way, including by removing the copyright notice or references to Ecma International, except as required to translate it into languages other than English or into a different format.
+
+The official version of an Ecma International document is the English language version on the Ecma International website. In the event of discrepancies between a translated version and the official version, the official version shall govern.
+
+The limited permissions granted above are perpetual and will not be revoked by Ecma International or its successors or assigns.
+
+This document and the information contained herein is provided on an “AS IS” basis and ECMA INTERNATIONAL DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE INFORMATION HEREIN WILL NOT INFRINGE ANY OWNERSHIP RIGHTS OR ANY IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Software License
+All Software contained in this document ("Software") is protected by copyright and is being made available under the "BSD License", included below. This Software may be subject to third party rights (rights from parties other than Ecma International), including patent rights, and no licenses under such third party rights are granted under this license even if the third party concerned is a member of Ecma International. SEE THE ECMA CODE OF CONDUCT IN PATENT MATTERS AVAILABLE AT https://ecma-international.org/memento/codeofconduct.htm FOR INFORMATION REGARDING THE LICENSING OF PATENT CLAIMS THAT ARE REQUIRED TO IMPLEMENT ECMA INTERNATIONAL STANDARDS.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+- Neither the name of the authors nor Ecma International may be used to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE ECMA INTERNATIONAL "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL ECMA INTERNATIONAL BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
