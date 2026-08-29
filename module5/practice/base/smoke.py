@@ -13,6 +13,7 @@ check.py, і розділяти ці дві перевірки варто — к
 """
 
 import sys
+import time
 
 FAILED = []
 
@@ -21,6 +22,13 @@ def check(name: str, ok: bool, detail: str = "") -> None:
     print(f"  {'ok  ' if ok else 'FAIL'}  {name}" + (f" — {detail}" if detail else ""))
     if not ok:
         FAILED.append(name)
+
+
+def skip(name: str, why: str) -> None:
+    """Перевірка, для якої зараз немає умов. Провалом це не рахується: пошук за
+    змістом потребує Docker, а сервер зобов'язаний працювати й без нього. Рядок
+    друкується все одно, щоб з виводу було видно, чого саме не перевіряли."""
+    print(f"  --    {name} — пропущено: {why}")
 
 
 def main(argv: list[str]) -> int:
@@ -34,7 +42,7 @@ def main(argv: list[str]) -> int:
     # 2026 року на тих самих файлах, що лежать у practice/docs*.
     from practice.common.corpus import DOC_SET
 
-    EXPECTED = {"core": 283, "full": 2436, "suite": 3964}
+    EXPECTED = {"core": 283, "full": 2436, "suite": 4171}
     total = len(spec_mcp._INDEX.passages)
     check(f"індекс зібрано при завантаженні модуля (набір {DOC_SET})",
           total == EXPECTED[DOC_SET],
@@ -47,10 +55,17 @@ def main(argv: list[str]) -> int:
 
     # 2. Пошук знаходить те, що в розділах явно є, і кожен знайдений фрагмент
     # приходить із заповненими полями — саме за ними клієнт цитує джерело.
+    # Перевіряти лише `found > 0` тут замало, і це видно на самому наборі suite:
+    # по словах перший результат на цей запит — розділ 15.1.1 «Intl.Locale ( tag )»,
+    # бо слово «tag» у ньому трапляється частіше, а потрібний 20.1.3.6 стоїть
+    # другим. Тому перевіряється не кількість, а те, що потрібний розділ узагалі є
+    # серед трьох перших.
     hits = search("Object.prototype.toString tag")
     found = hits.get("found", 0)
-    check("search_spec знаходить Object.prototype.toString", found > 0,
-          f"found={found}")
+    ids = [p["id"] for p in hits.get("passages", [])]
+    check("search_spec знаходить Object.prototype.toString",
+          any("20.1.3.6" in i for i in ids),
+          f"found={found}, перший {ids[0] if ids else '—'}")
     first = (hits.get("passages") or [{}])[0]
     check("у відповіді є id, section, document, text",
           all(first.get(f) for f in ("id", "section", "document", "text")),
@@ -109,6 +124,19 @@ def main(argv: list[str]) -> int:
     check("повний текст не коротший за обрізаний",
           len(full.get("text", "")) >= len(first.get("text", "")))
 
+    # 6a. Приклад ідентифікатора в описі read_section має існувати насправді.
+    # Опис — це інструкція для моделі, і приклад із нього вона копіює дослівно;
+    # неіснуючий приклад навчає її кликати інструмент так, як він не працює.
+    # Перевірка не декоративна: приклад справді був неправильний — він лишився
+    # від набору «core», у якому файл звався інакше.
+    import re
+
+    example = re.search(r'Example identifier: "([^"]+)"',
+                        spec_mcp.TOOL_DESCRIPTIONS["read_section"])
+    check("приклад id в описі read_section справді існує",
+          bool(example) and example.group(1) in spec_mcp._BY_ID,
+          example.group(1) if example else "прикладу в описі немає")
+
     # 7. Вигаданий ідентифікатор. Підказка в помилці важить не менше за саму
     # помилку: без неї модель починає гадати id далі.
     bad = read("22.1.3.19")
@@ -122,6 +150,58 @@ def main(argv: list[str]) -> int:
         check(f"{name}: опис довший за один рядок", len(doc) > 400,
               f"{len(doc)} симв.")
         check(f"{name}: опис каже, коли НЕ викликати", "Do not " in doc)
+
+    # 9. Пошук за змістом. Перевіряється насамперед те, що він нікого не тримає в
+    # заручниках: без Qdrant сервер мусить відповідати по словах, а не падати й не
+    # чекати. Тому основна частина цього розділу працює без контейнера і без
+    # моделі, а живий запит іде тільки тоді, коли база справді заповнена.
+    #
+    # Спершу — очікування. Сервер піднімає контейнер і прогріває модель у фоні, і
+    # для клієнта це правильно: він відповідає одразу, поки що по словах. Але
+    # перевірка, яка спитає готовність через мілісекунду після імпорту, завжди
+    # побачить «ще ні» і мовчки пропустить головне. Тут чекати можна — це не
+    # сервер, а перевірка.
+    if spec_mcp._VECTORS_ASKED and not spec_mcp._VECTORS_READY:
+        print("  ..    чекаю прогріву пошуку за змістом (до 90 с)")
+        deadline = time.time() + 90
+        while (time.time() < deadline and not spec_mcp._VECTORS_READY
+               and not spec_mcp._VECTORS_WHY):
+            time.sleep(1)
+    # Злиття за взаємним рангом на трьох вигаданих фрагментах: b другий в обох
+    # списках, a і c — перші, але кожен лише в одному. Спільний має виграти,
+    # інакше злиття не робить того, заради чого його взяли.
+    a, b, c = spec_mcp._INDEX.passages[:3]
+    check("злиття двох списків підіймає спільний фрагмент",
+          spec_mcp._rrf([[a, b], [c, b]], 3)[0] is b)
+    if spec_mcp._VECTORS_READY:
+        skip("без готових векторів пошук іде по словах", "вектори готові")
+    else:
+        check("без готових векторів пошук іде по словах",
+              spec_mcp._find("object", 3)[1] == "words")
+    check("відповідь пошуку каже, яким способом знайдено",
+          search("object", 1).get("search") in {"words", "meaning+words"},
+          str(search("object", 1).get("search")))
+    empty = search(ua, 1)          # кирилиця — єдиний надійно порожній запит
+    check("порожня відповідь теж каже спосіб",
+          empty.get("found") == 0 and "search" in empty)
+    check("опис search_spec пояснює моделі поле search",
+          '"meaning+words"' in (search.__doc__ or ""))
+
+    from practice.common.mode import read as read_mode
+    check("рішення про пошук читається з файла",
+          read_mode().get("search") in {"words", "vectors"},
+          str(read_mode().get("search")))
+
+    if spec_mcp._VECTORS_READY:
+        # Запит навмисне не називає жодного слова з потрібного розділу: по словах
+        # такий не знаходить нічого схожого, тож «meaning+words» тут — доказ, що
+        # відповів саме змістовий пошук.
+        res = search("how to find out the type of a value", 5)
+        check("живий пошук за змістом відповідає",
+              res.get("search") == "meaning+words", str(res.get("search")))
+    else:
+        skip("живий пошук за змістом",
+             spec_mcp._VECTORS_WHY or "не дочекався прогріву")
 
     print()
     if FAILED:

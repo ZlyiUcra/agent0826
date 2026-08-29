@@ -6,19 +6,27 @@
 інструментами, і його бачить будь-який MCP-клієнт — Inspector, Claude Code,
 Cursor.
 
-Типово завантажується вся ECMA-262 — набір «full», 2436 фрагментів. Змінна
-PRACTICE_DOCS перемикає на «core» (вісімнадцять розділів навколо типу Object,
-283 фрагменти) або на «suite» (262 плюс ECMA-402, 404, 414 і вільні документи
-довкола 402, 3964 фрагменти). Що саме завантажено, сервер пише в stderr на старті
-і дописує окремим реченням до опису обох інструментів.
+Типово завантажується найширший набір, «suite»: уся ECMA-262 плюс ECMA-402,
+ECMA-404, ECMA-414 і вільні документи, на які спирається 402, — сімдесят два
+файли, 4171 фрагмент. Змінна PRACTICE_DOCS перемикає на «full» (лише 262, 2436
+фрагментів) або на «core» (вісімнадцять розділів навколо типу Object, 283
+фрагменти). Що саме завантажено, сервер пише в stderr на старті і дописує
+окремим реченням до опису обох інструментів.
 
-Пошук тут тільки по словах. Пошук по змісту (vectors.py, модель e5, torch) сюди не
-перенесено свідомо: він вантажить модель десятки секунд, а сервер по stdio має
-відповісти клієнтові одразу після запуску, інакше клієнт вирішить, що сервер
-мертвий. Ціна рішення названа в README: пошук по словах не знаходить синонімів.
+Шукає сервер двома способами. По словах — завжди: індекс BM25 будується з тих
+самих файлів при завантаженні модуля і нічого більше не потребує. За змістом —
+коли власник погодився на це при підготовці (practice/base/setup.py): тоді поруч
+працює Qdrant, а близькість рахує модель bge-small через ONNX. Обидва списки
+зливаються за взаємним рангом, і відповідь пошуку каже полем `search`, який із
+двох способів її дав.
+
+Другий спосіб ніде не стоїть на критичному шляху. Контейнер піднімається, а
+модель прогрівається в окремій нитці, тож на перший запит сервер відповідає
+одразу, поки що по словах. Якщо Qdrant не піднявся або колекція порожня, сервер
+не падає: пише причину в stderr і працює по словах далі.
 
 Ключі серверу не потрібні: він не звертається ні до Anthropic, ні в мережу —
-читає теки docs*/ і більше нічого.
+читає теки docs*/, говорить із Qdrant на localhost і більше нічого.
 
 Запуск (сам по собі мовчки чекає клієнта на stdio — це не зависання):
 
@@ -36,6 +44,7 @@ import os
 import pathlib
 import sys
 import textwrap
+import threading
 
 # Сервер запускають файлом («python practice/base/spec_mcp.py»), і Claude Code
 # запускає його зі своєї поточної теки, а не з module5/. Тому корінь модуля
@@ -43,18 +52,6 @@ import textwrap
 _MODULE_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(_MODULE_ROOT))
-
-# Який набір документів брати. common/corpus.py читає змінну PRACTICE_DOCS і знає
-# три набори: «core» — вісімнадцять розділів навколо типу Object, «full» — уся
-# специфікація ECMA-262 (38 розділів), «suite» — та сама 262 плюс ECMA-402 (Intl),
-# ECMA-404 (JSON), ECMA-414 і вільні документи довкола 402.
-#
-# Типовим тут стоїть «full»: питання до сервера ставлять про всю мову, а не про
-# один її кут, і відповідь «такого немає» через те, що розділ просто не завантажили,
-# гірша за повільніший старт. Старт від цього не потерпає — уся 262 читається і
-# індексується приблизно за секунду. setdefault, а не пряме присвоєння: якщо
-# власник назвав набір у оточенні, його вибір лишається за ним.
-os.environ.setdefault("PRACTICE_DOCS", "full")
 
 # MCP SDK 1.x називав це FastMCP, у 2.0 — MCPServer; API той самий.
 # Той самий подвійний імпорт, що в курсовому tracking_mcp.py.
@@ -68,7 +65,9 @@ except ImportError:
 
 from practice.common import nform
 from practice.common.corpus import DOC_SET, Passage
-from practice.common.lexical import LexicalIndex
+from practice.common.idmap import assign_ids
+from practice.common import mode
+from practice.common.lexical import LexicalIndex, tokenize
 
 # Скільки символів фрагмента віддавати у відповіді пошуку. Фрагменти бувають до
 # півтори тисячі символів, і три таких у відповіді — це вже стіна тексту в
@@ -84,25 +83,11 @@ K_MIN, K_MAX = 1, 10
 # робити це щоразу означало б платити цією секундою за кожен запит.
 _INDEX = LexicalIndex()
 
-# Ідентифікатор фрагмента береться з corpus.Passage.pid, і на наборі «core» вони
-# всі різні. На повній специфікації є один збіг: у розділі
-# 16-ecmascript-language-scripts-and-modules два рядки кроків алгоритму, «1 ( D )»
-# і «1 ( B )», розбір приймає за заголовки розділу з номером «1», і обидва
-# фрагменти дістають однаковий pid. Якби ми клали їх у словник як є, другий тихо
-# затер би перший: пошук показав би його id, а read_section повернув би чужий
-# текст. Тому ідентифікатори роздаються тут, і повторному додається «~2». Обидва
-# інструменти беруть id саме звідси, тож те, що показав пошук, і те, що прочитає
-# read_section, — завжди один фрагмент.
-_BY_ID: dict[str, Passage] = {}
-_UID: dict[Passage, str] = {}
-for _p in _INDEX.passages:
-    _uid = _p.pid
-    _n = 2
-    while _uid in _BY_ID:
-        _uid = f"{_p.pid}~{_n}"
-        _n += 1
-    _BY_ID[_uid] = _p
-    _UID[_p] = _uid
+# Ідентифікатори роздає common/idmap.py, а не сам Passage.pid: на повній
+# специфікації два фрагменти можуть дістати однаковий pid, і один із них став би
+# недосяжним. Те саме місце використовує заливання в Qdrant, тож ідентифікатор у
+# відповіді пошуку і ідентифікатор у базі — той самий рядок.
+_BY_ID, _UID = assign_ids(_INDEX.passages)
 
 _COUNT = len(_INDEX.passages)
 _DOCS = len({p.doc_id for p in _INDEX.passages})
@@ -119,9 +104,13 @@ _LOADED = {
     "full": (f"Loaded right now: the whole of ECMA-262, {_COUNT} excerpts from "
              f"{_DOCS} sections -- syntax, semantics, every built-in object. Other "
              f"standards are not here: no ECMA-402 (Intl), no ECMA-404 (JSON)."),
-    "suite": (f"Loaded right now: ECMA-262 together with ECMA-402 (Intl), ECMA-404 "
-              f"(JSON), ECMA-414 and the free documents around 402 (RFC 4647, the "
-              f"Unicode reports) -- {_COUNT} excerpts from {_DOCS} sections."),
+    "suite": (f"Loaded right now: the whole of ECMA-262 together with ECMA-402 "
+              f"(Intl), ECMA-404 (JSON), ECMA-414 and the free documents the Intl "
+              f"specification builds on -- RFC 4647 and the Unicode reports UAX #29, "
+              f"UTS #10 and UTS #35. {_COUNT} excerpts from {_DOCS} documents. This "
+              f"is the widest set the server has; if something about JavaScript or "
+              f"its internationalization is not found here, it is unlikely to be "
+              f"anywhere in these standards."),
 }[DOC_SET]
 
 # Рядок діагностики — у stderr. У stdout не можна нічого: там ходять кадри
@@ -130,6 +119,55 @@ print(f"spec_mcp: набір «{DOC_SET}», проіндексовано {_COUNT
       f"{nform(_COUNT, 'фрагмент', 'фрагменти', 'фрагментів')} "
       f"з {_DOCS} {nform(_DOCS, 'розділу', 'розділів', 'розділів')}",
       file=sys.stderr)
+
+# Пошук за змістом: чи його просили, і чи він уже готовий.
+#
+# Рішення ухвалене один раз при підготовці (practice/base/setup.py) і лежить у
+# out/mode.json; тут його лише читають. Якщо просили — усе довге робиться в
+# окремій нитці: підняти контейнер Qdrant, звірити колекцію, прогріти модель.
+# На критичному шляху не стоїть нічого: сервер відповідає клієнтові одразу, а
+# поки нитка не впоралася, пошук іде по словах. Так само він поводиться, коли
+# Qdrant лежить і підняти його не вдалося.
+_MODE = mode.read()
+_VECTORS_ASKED = _MODE.get("search") == "vectors"
+_VECTORS_READY = False
+_VECTORS_WHY = "" if _VECTORS_ASKED else "не просили при підготовці"
+
+
+def _prepare_vectors() -> None:
+    global _VECTORS_READY, _VECTORS_WHY
+    try:
+        from practice.common import embed, vectorstore
+        if not vectorstore.ensure_running():
+            _VECTORS_WHY = "Qdrant не відповідає і контейнер не піднявся"
+        elif vectorstore.count() == 0:
+            _VECTORS_WHY = (f"колекція {vectorstore.COLLECTION} порожня — "
+                            f"запустіть python -m practice.base.setup --vectors")
+        else:
+            embed.model()          # прогрів: перший запит не має платити за це
+            _VECTORS_READY = True
+            have = vectorstore.count()
+            print(f"spec_mcp: пошук за змістом готовий, "
+                  f"{have} точок у {vectorstore.COLLECTION}", file=sys.stderr)
+            # Недолита колекція — не привід відмовлятися від неї: три з половиною
+            # тисячі фрагментів шукають краще, ніж жодного. Але й мовчати про це
+            # не можна: заливання переривається легко, а зовні недостача видно
+            # тільки як «чомусь не знайшлося».
+            if have != _COUNT:
+                print(f"spec_mcp: у колекції {have} точок замість {_COUNT} — "
+                      f"частина фрагментів шукається лише по словах; "
+                      f"дорахувати: python -m practice.base.setup --vectors",
+                      file=sys.stderr)
+            return
+    except Exception as exc:                      # noqa: BLE001 - причина в stderr
+        _VECTORS_WHY = f"{type(exc).__name__}: {exc}"
+    print(f"spec_mcp: пошук за змістом недоступний ({_VECTORS_WHY}); "
+          f"працюю по словах", file=sys.stderr)
+
+
+if _VECTORS_ASKED:
+    threading.Thread(target=_prepare_vectors, name="vectors", daemon=True).start()
+
 
 # Журнал викликів: хто що питав.
 #
@@ -171,16 +209,55 @@ def _preview(text: str) -> str:
     return text[:PREVIEW_CHARS] + "..."
 
 
-def _format_hits(passages: list[Passage]) -> dict:
+def _format_hits(passages: list[Passage], how: str) -> dict:
     """Відповідь пошуку. Формат той самий, що в common/search.py практики модуля 4,
-    з однією різницею — текст тут обрізаний до PREVIEW_CHARS."""
+    плюс поле `search` і обрізаний текст.
+
+    Поле `search` каже моделі, як саме знайдено: «words» — лише по словах,
+    «meaning+words» — обидва способи разом. Це не прикраса: коли пошук за змістом
+    лежить, порожня відповідь означає інше, ніж коли він працює, і модель має
+    змогу це врахувати."""
     if not passages:
-        return {"found": 0,
+        return {"found": 0, "search": how,
                 "note": "Nothing in the available excerpts matches this query."}
-    return {"found": len(passages),
+    return {"found": len(passages), "search": how,
             "passages": [{"id": _UID[p], "section": p.label,
                           "document": p.doc_title, "text": _preview(p.text)}
                          for p in passages]}
+
+
+def _rrf(rankings: list[list[Passage]], k: int, const: int = 60) -> list[Passage]:
+    """Злиття двох списків за взаємним рангом (RRF).
+
+    Пошук по словах і пошук за змістом дають оцінки в різних шкалах, і порівнювати
+    їх безпосередньо не можна. RRF порівнює не оцінки, а місця: фрагмент, що
+    трапився високо в обох списках, підіймається вище за той, що виграв лише в
+    одному. Стала 60 — та, з якою цей спосіб опублікували; вона згладжує різницю
+    між першим і другим місцем.
+    """
+    score: dict[Passage, float] = {}
+    for ranking in rankings:
+        for place, passage in enumerate(ranking):
+            score[passage] = score.get(passage, 0.0) + 1.0 / (const + place + 1)
+    return sorted(score, key=lambda p: -score[p])[:k]
+
+
+def _find(query: str, k: int) -> tuple[list[Passage], str]:
+    """Пошук по словах, а якщо готовий — разом із пошуком за змістом."""
+    words = _INDEX.retrieve(query, k)
+    if not _VECTORS_READY:
+        return words, "words"
+    try:
+        from practice.common import embed, vectorstore
+        hits = vectorstore.search(embed.embed_query(query), k)
+        meaning = [_BY_ID[h["uid"]] for h in hits if h.get("uid") in _BY_ID]
+    except Exception as exc:                      # noqa: BLE001 - причина в stderr
+        print(f"spec_mcp: пошук за змістом не відповів ({exc}); "
+              f"віддаю знайдене по словах", file=sys.stderr)
+        return words, "words"
+    if not meaning:
+        return words, "words"
+    return _rrf([words, meaning], k), "meaning+words"
 
 
 def search_spec(query: str, k: int = 3) -> dict:
@@ -198,11 +275,16 @@ def search_spec(query: str, k: int = 3) -> dict:
     the search will return unrelated sections with confident-looking numbers.
 
     Write the query in English, using the identifiers the specification itself
-    uses. The text held here is English, and the query is matched against it word
-    by word (BM25), keeping only latin letters and digits: a query written in
-    Ukrainian, Russian or any other non-latin script matches nothing at all and
-    comes back with `found: 0`. When the user asks in another language, translate
-    the question into specification terms first, then search.
+    uses. Everything here is English -- the excerpts, the word index and the
+    meaning index alike -- and the word index keeps only latin letters and digits,
+    so a query written in Ukrainian, Russian or any other non-latin script matches
+    nothing at all and comes back with `found: 0`. When the user asks in another
+    language, translate the question into specification terms first, then search.
+
+    The `search` field of the result says how the excerpts were found: "words"
+    means the words of the query had to appear in the text, so a query phrased in
+    other words than the specification uses may miss; "meaning+words" means a
+    second, meaning-based index answered as well, and a paraphrase had a chance.
 
     Answer in the language the user wrote in. When that language is Ukrainian,
     write as a Ukrainian engineer writes, not as a translation from English:
@@ -221,9 +303,27 @@ def search_spec(query: str, k: int = 3) -> dict:
     if not isinstance(k, int) or k < K_MIN or k > K_MAX:
         _log("search_spec", f"query={query!r} k={k!r}", "помилка: k поза межами")
         return {"error": f"k має бути від {K_MIN} до {K_MAX}"}
-    hits = _INDEX.retrieve(query, k)
-    _log("search_spec", f"query={query[:120]!r} k={k}", f"знайдено {len(hits)}")
-    return _format_hits(hits)
+
+    # Запит без жодного латинського слова далі не йде — ані в пошук по словах,
+    # ані в пошук за змістом. По словах він і так дав би нуль: токенізатор бачить
+    # тільки [a-z0-9_]+. А от пошук за змістом дав би відповідь, і в цьому вся
+    # біда: модель векторів англійська, кирилицю вона зводить до чисел, які нічого
+    # не означають, але найближчі сусіди в них знайдуться завжди. Клієнт дістав би
+    # три впевнені номери розділів навмання — саме та помилка, проти якої написано
+    # абзац «коли не кликати». Тому тут відповідь чесна: шукати не було чого.
+    if not tokenize(query):
+        _log("search_spec", f"query={query[:120]!r} k={k}",
+             "нуль латинських слів у запиті")
+        return {"found": 0, "search": "words",
+                "note": "The query has no latin words, and everything held here "
+                        "is English -- both the word index and the meaning index. "
+                        "Translate the question into the terms the specification "
+                        "uses, then search again."}
+
+    hits, how = _find(query, k)
+    _log("search_spec", f"query={query[:120]!r} k={k}",
+         f"знайдено {len(hits)} ({how})")
+    return _format_hits(hits, how)
 
 
 def read_section(id: str) -> dict:
@@ -233,7 +333,6 @@ def read_section(id: str) -> dict:
     Call this after `search_spec` when the excerpt you need came back cut at 600
     characters, or when the exact wording of a step in an abstract operation
     matters -- a definition quoted half-way is how a wrong answer starts.
-    Example identifier: "14-object-objects#20.1.3.6/2".
 
     Do not guess identifiers: they are not section numbers and cannot be
     assembled by hand. Every identifier this tool accepts comes from the `id`
@@ -262,11 +361,27 @@ def read_section(id: str) -> dict:
 # Тут описом стає докстрінг ПЛЮС рядок про завантажений набір: інакше модель не
 # знає, де межа того, що їй доступно, а докстрінг цієї межі знати не може, бо її
 # обирають при запуску.
+#
+# Так само дописується приклад ідентифікатора для read_section. У докстрінгу його
+# теж не напишеш наперед: ідентифікатор починається з імені файла, а те саме
+# місце специфікації лежить у різних наборах у файлах із різними іменами —
+# «14-object-objects#20.1.3.6/2» у наборі core і «20-fundamental-objects#20.1.3.6/2»
+# у full та suite. Приклад модель копіює дослівно, тож він мусить бути з того
+# індексу, який справді завантажений.
+_EXAMPLE_ID = next(
+    (uid for uid, p in _BY_ID.items() if "Object.prototype.toString" in p.label),
+    next(iter(_BY_ID)))
+
+_EXTRA = {
+    "search_spec": _LOADED,
+    "read_section": f'Example identifier: "{_EXAMPLE_ID}".\n\n{_LOADED}',
+}
+
 TOOL_DESCRIPTIONS: dict[str, str] = {}
 
 for _fn in (search_spec, read_section):
     TOOL_DESCRIPTIONS[_fn.__name__] = (
-        textwrap.dedent(_fn.__doc__).strip() + "\n\n" + _LOADED)
+        textwrap.dedent(_fn.__doc__).strip() + "\n\n" + _EXTRA[_fn.__name__])
     mcp.tool(description=TOOL_DESCRIPTIONS[_fn.__name__])(_fn)
 
 

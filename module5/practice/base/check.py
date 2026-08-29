@@ -55,7 +55,13 @@ async def main() -> int:
             query = "Object.prototype.toString tag"
             hits = payload(await session.call_tool("search_spec",
                                                    {"query": query, "k": 2}))
-            print(f"\nsearch_spec({query!r}, k=2) → found={hits.get('found')}")
+            # Поле search друкується поруч із found навмисне: сервер піднімає
+            # пошук за змістом у фоні вже після того, як відповів на initialize,
+            # тож перші виклики цілком законно приходять із «words». Без цього
+            # рядка різницю між «вектори ще гріються» і «вектори не працюють»
+            # з виводу не видно.
+            print(f"\nsearch_spec({query!r}, k=2) → found={hits.get('found')}, "
+                  f"search={hits.get('search')}")
             for p in hits.get("passages", []):
                 print(f"  [{p['id']}] {p['section']}")
                 print(f"      {p['text'][:120]}...")
