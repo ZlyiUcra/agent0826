@@ -122,7 +122,7 @@ python -m practice.challenges.qdrant_store --migrate
 - `PRACTICE_RETRIEVER` — `auto` (типово), `vector` (лише документи), `qdrant` (лише база), `lexical` (BM25).
 - `PRACTICE_DOCS` — `core` (вісімнадцять розділів навколо `sec-object-type`), `full` (уся специфікація
   ECMA-262) або `suite` (та сама ECMA-262 плюс ECMA-402, 404, 414 і десять вільних документів довкола 402 у
-  `docs-suite/`, лише в модулі 4).
+  `docs-suite/`; тека є в модулях 3 і 4, у модулі 2 її немає).
 
 ## Колекції
 
