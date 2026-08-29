@@ -160,7 +160,9 @@ def status() -> int:
         total = len(load_passages())
         state = ("залито повністю" if have == total else
                  "колекції ще немає" if info is None else
-                 f"недолито {total - have}")
+                 f"недолито {total - have}" if have < total else
+                 f"на {have - total} більше, ніж фрагментів — колекція від "
+                 f"іншого видання набору, її треба залити наново")
         print(f"Qdrant       : відповідає, точок {have} із {total} — {state}")
     else:
         print(f"Qdrant       : не відповідає ({vectorstore.QDRANT_URL})")
@@ -350,6 +352,18 @@ def enable_vectors(refill: bool = False) -> int:
           f"{'створена' if created else 'уже була'}")
 
     have = 0 if refill else vectorstore.count()
+    if have > len(passages):
+        print(f"\nУ колекції {have} точок, а фрагментів у наборі {len(passages)}.\n"
+              "Це не «залито з запасом», а інше видання набору: документи відтоді\n"
+              "змінилися, фрагментів стало менше, і зайві точки описують текст,\n"
+              "якого в наборі вже немає, — але пошук їх і далі знаходить.\n"
+              "Дорахунок не рятує: міняти треба не хвіст, а всі номери після того\n"
+              "місця, де набір скоротився. Колекцію треба прибрати і залити наново;\n"
+              "видаляєте її ви самі, у практиці такої команди немає навмисно:\n"
+              f"  curl -X DELETE {vectorstore.QDRANT_URL}/collections/"
+              f"{vectorstore.COLLECTION}\n"
+              "  python -m practice.base.setup --vectors")
+        return 1
     if have and have < len(passages) and not _aligned(passages, uid_of, have):
         print("\nНаявні точки описують не ті фрагменти, що лежать на їхніх місцях\n"
               "тепер: набір документів змінився не з кінця, а всередині. Дорахунок\n"

@@ -42,7 +42,7 @@ def main(argv: list[str]) -> int:
     # 2026 року на тих самих файлах, що лежать у practice/docs*.
     from practice.common.corpus import DOC_SET
 
-    EXPECTED = {"core": 283, "full": 2436, "suite": 4171}
+    EXPECTED = {"core": 283, "full": 2436, "suite": 4162}
     total = len(spec_mcp._INDEX.passages)
     check(f"індекс зібрано при завантаженні модуля (набір {DOC_SET})",
           total == EXPECTED[DOC_SET],
