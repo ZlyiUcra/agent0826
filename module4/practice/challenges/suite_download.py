@@ -36,9 +36,12 @@ docs-full/ (уся 262) плюс docs-suite/, і збирає його common/co
 набір символів ISO/IEC 10646, коди валют ISO 4217, RFC 4647, база часових
 поясів IANA, сам Unicode і три його звіти. Стандарти ISO платні, база IANA —
 таблиці, а не текст, Unicode як книга завеликий; решта — вільний текст, і
-скрипт кладе його поруч із 402 вісьмома документами. Шість із них розділ 3
-називає прямо; частини 4 і 5 LDML додано понад перелік, бо на них стоять
-Intl.DateTimeFormat і Intl.Collator:
+скрипт кладе його поруч із 402 десятьма документами. Шість із них розділ 3
+називає прямо; решта частин LDML додана понад перелік, бо на них стоять
+конкретні частини Intl: 4 і 5 — Intl.DateTimeFormat і Intl.Collator, 6 —
+дані локалей, до яких 402 відсилає щоразу, коли каже «візьміть locale data».
+Частина 7 до Intl стосунку не має і взята на прохання власника, щоб набір
+LDML лежав повністю:
 
     rfc4647-matching-of-language-tags  зіставлення мовних тегів (localeMatcher)
     uax29-text-segmentation            межі графем, слів, речень (Intl.Segmenter)
@@ -48,6 +51,10 @@ Intl.DateTimeFormat і Intl.Collator:
     uts35-3-numbers                    LDML, частина 3: числа і правила множини
     uts35-4-dates                      LDML, частина 4: дати, час, часові пояси
     uts35-5-collation                  LDML, частина 5: налаштування сортування
+    uts35-6-supplemental               LDML, частина 6: дані локалей — likely
+                                       subtags, правила множини, валютні й
+                                       тижневі дані, часові пояси, одиниці
+    uts35-7-keyboards                  LDML, частина 7: розкладки клавіатури
 
 Імена починаються з літер, тому номера документа ці файли не мають і, як і
 документи 402, дістаються лише маршрутові GENERAL.
@@ -134,6 +141,12 @@ REFERENCES = {
     "uts35-5-collation": (
         "https://www.unicode.org/reports/tr35/tr35-collation.html",
         "Unicode Technical Standard #35: LDML Part 5: Collation", "ldml"),
+    "uts35-6-supplemental": (
+        "https://www.unicode.org/reports/tr35/tr35-info.html",
+        "Unicode Technical Standard #35: LDML Part 6: Supplemental", "ldml"),
+    "uts35-7-keyboards": (
+        "https://www.unicode.org/reports/tr35/tr35-keyboards.html",
+        "Unicode Technical Standard #35: LDML Part 7: Keyboards", "ldml"),
 }
 
 # Верхній розділ або додаток однієї сторінки ecmarkup: атрибути там без лапок.
