@@ -1,0 +1,88 @@
+# 20.3 Boolean Objects
+# джерело: https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-boolean-objects
+# отримано: 2026-08-25
+
+20.3 Boolean Objects
+
+20.3.1 The Boolean Constructor
+
+The Boolean constructor :
+
+- is %Boolean% .
+
+- is the initial value of the "Boolean" property of the global object .
+
+- creates and initializes a new Boolean object when called as a constructor .
+
+- performs a type conversion when called as a function rather than as a constructor .
+
+- may be used as the value of an extends clause of a class definition. Subclass constructors that intend to inherit the specified Boolean behaviour must include a super call to the Boolean constructor to create and initialize the subclass instance with a [[BooleanData]] internal slot.
+
+20.3.1.1 Boolean ( value )
+
+This function performs the following steps when called:
+
+- Let bool be ToBoolean ( value ).
+- If NewTarget is undefined , return bool .
+- Let obj be ? OrdinaryCreateFromConstructor (NewTarget, "%Boolean.prototype%" , « [[BooleanData]] »).
+- Set obj . [[BooleanData]] to bool .
+- Return obj .
+
+20.3.2 Properties of the Boolean Constructor
+
+The Boolean constructor :
+
+- has a [[Prototype]] internal slot whose value is %Function.prototype% .
+
+- has the following properties:
+
+20.3.2.1 Boolean.prototype
+
+The initial value of Boolean.prototype is the Boolean prototype object .
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.3.3 Properties of the Boolean Prototype Object
+
+The Boolean prototype object :
+
+- is %Boolean.prototype% .
+
+- is an ordinary object .
+
+- is itself a Boolean object; it has a [[BooleanData]] internal slot with the value false .
+
+- has a [[Prototype]] internal slot whose value is %Object.prototype% .
+
+20.3.3.1 Boolean.prototype.constructor
+
+The initial value of Boolean.prototype.constructor is %Boolean% .
+
+20.3.3.2 Boolean.prototype.toString ( )
+
+This method performs the following steps when called:
+
+- Let bool be ? ThisBooleanValue ( this value).
+- If bool is true , return "true" .
+- Return "false" .
+
+20.3.3.3 Boolean.prototype.valueOf ( )
+
+This method performs the following steps when called:
+
+- Return ? ThisBooleanValue ( this value).
+
+20.3.3.3.1 ThisBooleanValue ( arg )
+
+The abstract operation ThisBooleanValue takes argument arg (an ECMAScript language value ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- If arg is a Boolean , return arg .
+- If arg is an Object and arg has a [[BooleanData]] internal slot, then - Let bool be arg . [[BooleanData]] .
+- Assert : bool is a Boolean .
+- Return bool .
+
+- Throw a TypeError exception.
+
+20.3.4 Properties of Boolean Instances
+
+Boolean instances are ordinary objects that inherit properties from the Boolean prototype object . Boolean instances have a [[BooleanData]] internal slot. The [[BooleanData]] internal slot is the Boolean value represented by this Boolean object.

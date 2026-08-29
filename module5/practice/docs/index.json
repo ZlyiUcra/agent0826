@@ -1,0 +1,146 @@
+[
+  {
+    "file": "01-object-type.txt",
+    "id": "sec-object-type",
+    "section": "6.1.7",
+    "title": "6.1.7 The Object Type",
+    "chars": 26414,
+    "url": "https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-object-type"
+  },
+  {
+    "file": "02-property-attributes.txt",
+    "id": "sec-property-attributes",
+    "section": "6.1.7.1",
+    "title": "6.1.7.1 Property Attributes",
+    "chars": 1959,
+    "url": "https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-property-attributes"
+  },
+  {
+    "file": "03-object-internal-methods-and-internal-slots.txt",
+    "id": "sec-object-internal-methods-and-internal-slots",
+    "section": "6.1.7.2",
+    "title": "6.1.7.2 Object Internal Methods and Internal Slots",
+    "chars": 8648,
+    "url": "https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-object-internal-methods-and-internal-slots"
+  },
+  {
+    "file": "04-invariants-of-the-essential-internal-methods.txt",
+    "id": "sec-invariants-of-the-essential-internal-methods",
+    "section": "6.1.7.3",
+    "title": "6.1.7.3 Invariants of the Essential Internal Methods",
+    "chars": 7304,
+    "url": "https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-invariants-of-the-essential-internal-methods"
+  },
+  {
+    "file": "05-ordinary-object-internal-methods-and-internal-slots.txt",
+    "id": "sec-ordinary-object-internal-methods-and-internal-slots",
+    "section": "10.1",
+    "title": "10.1 Ordinary Object Internal Methods and Internal Slots",
+    "chars": 23463,
+    "url": "https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-ordinary-object-internal-methods-and-internal-slots"
+  },
+  {
+    "file": "06-bound-function-exotic-objects.txt",
+    "id": "sec-bound-function-exotic-objects",
+    "section": "10.4.1",
+    "title": "10.4.1 Bound Function Exotic Objects",
+    "chars": 3644,
+    "url": "https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-bound-function-exotic-objects"
+  },
+  {
+    "file": "07-array-exotic-objects.txt",
+    "id": "sec-array-exotic-objects",
+    "section": "10.4.2",
+    "title": "10.4.2 Array Exotic Objects",
+    "chars": 7777,
+    "url": "https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-array-exotic-objects"
+  },
+  {
+    "file": "08-string-exotic-objects.txt",
+    "id": "sec-string-exotic-objects",
+    "section": "10.4.3",
+    "title": "10.4.3 String Exotic Objects",
+    "chars": 4964,
+    "url": "https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-string-exotic-objects"
+  },
+  {
+    "file": "09-arguments-exotic-objects.txt",
+    "id": "sec-arguments-exotic-objects",
+    "section": "10.4.4",
+    "title": "10.4.4 Arguments Exotic Objects",
+    "chars": 12343,
+    "url": "https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-arguments-exotic-objects"
+  },
+  {
+    "file": "10-typedarray-exotic-objects.txt",
+    "id": "sec-typedarray-exotic-objects",
+    "section": "10.4.5",
+    "title": "10.4.5 TypedArray Exotic Objects",
+    "chars": 15481,
+    "url": "https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-typedarray-exotic-objects"
+  },
+  {
+    "file": "11-module-namespace-exotic-objects.txt",
+    "id": "sec-module-namespace-exotic-objects",
+    "section": "10.4.6",
+    "title": "10.4.6 Module Namespace Exotic Objects",
+    "chars": 8490,
+    "url": "https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-module-namespace-exotic-objects"
+  },
+  {
+    "file": "12-immutable-prototype-exotic-objects.txt",
+    "id": "sec-immutable-prototype-exotic-objects",
+    "section": "10.4.7",
+    "title": "10.4.7 Immutable Prototype Exotic Objects",
+    "chars": 1570,
+    "url": "https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-immutable-prototype-exotic-objects"
+  },
+  {
+    "file": "13-proxy-object-internal-methods-and-internal-slots.txt",
+    "id": "sec-proxy-object-internal-methods-and-internal-slots",
+    "section": "10.5",
+    "title": "10.5 Proxy Object Internal Methods and Internal Slots",
+    "chars": 25380,
+    "url": "https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-proxy-object-internal-methods-and-internal-slots"
+  },
+  {
+    "file": "14-object-objects.txt",
+    "id": "sec-object-objects",
+    "section": "20.1",
+    "title": "20.1 Object Objects",
+    "chars": 19034,
+    "url": "https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object-objects"
+  },
+  {
+    "file": "15-boolean-objects.txt",
+    "id": "sec-boolean-objects",
+    "section": "20.3",
+    "title": "20.3 Boolean Objects",
+    "chars": 2861,
+    "url": "https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-boolean-objects"
+  },
+  {
+    "file": "16-symbol-objects.txt",
+    "id": "sec-symbol-objects",
+    "section": "20.4",
+    "title": "20.4 Symbol Objects",
+    "chars": 9659,
+    "url": "https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-symbol-objects"
+  },
+  {
+    "file": "17-number-objects.txt",
+    "id": "sec-number-objects",
+    "section": "21.1",
+    "title": "21.1 Number Objects",
+    "chars": 18215,
+    "url": "https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-number-objects"
+  },
+  {
+    "file": "18-string-objects.txt",
+    "id": "sec-string-objects",
+    "section": "22.1",
+    "title": "22.1 String Objects",
+    "chars": 52257,
+    "url": "https://tc39.es/ecma262/multipage/text-processing.html#sec-string-objects"
+  }
+]

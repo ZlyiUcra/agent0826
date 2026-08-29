@@ -1,0 +1,269 @@
+# 20.4 Symbol Objects
+# джерело: https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-symbol-objects
+# отримано: 2026-08-25
+
+20.4 Symbol Objects
+
+20.4.1 The Symbol Constructor
+
+The Symbol constructor :
+
+- is %Symbol% .
+
+- is the initial value of the "Symbol" property of the global object .
+
+- returns a new Symbol value when called as a function.
+
+- is not intended to be used with the new operator.
+
+- is not intended to be subclassed.
+
+- may be used as the value of an extends clause of a class definition but a super call to it will cause an exception.
+
+20.4.1.1 Symbol ( [ description ] )
+
+This function performs the following steps when called:
+
+- If NewTarget is not undefined , throw a TypeError exception.
+- If description is undefined , let descString be undefined .
+- Else, let descString be ? ToString ( description ).
+- Return a new Symbol whose [[Description]] is descString .
+
+20.4.2 Properties of the Symbol Constructor
+
+The Symbol constructor :
+
+- has a [[Prototype]] internal slot whose value is %Function.prototype% .
+
+- has the following properties:
+
+20.4.2.1 Symbol.asyncDispose
+
+The initial value of Symbol.asyncDispose is the well-known symbol %Symbol.asyncDispose% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.2 Symbol.asyncIterator
+
+The initial value of Symbol.asyncIterator is the well-known symbol %Symbol.asyncIterator% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.3 Symbol.dispose
+
+The initial value of Symbol.dispose is the well-known symbol %Symbol.dispose% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.4 Symbol.for ( key )
+
+This function performs the following steps when called:
+
+- Let stringKey be ? ToString ( key ).
+- Let agentRecord be the Agent Record of the surrounding agent .
+- Let globalSymbolRegistry be agentRecord . [[GlobalSymbolRegistry]] .
+- For each element element of globalSymbolRegistry , do - If element . [[Key]] is stringKey , return element . [[Symbol]] .
+
+- Assert : globalSymbolRegistry does not currently contain an entry for stringKey .
+- Let newSymbol be a new Symbol whose [[Description]] is stringKey .
+- Append the GlobalSymbolRegistry Record { [[Key]] : stringKey , [[Symbol]] : newSymbol } to globalSymbolRegistry .
+- Return newSymbol .
+
+20.4.2.5 Symbol.hasInstance
+
+The initial value of Symbol.hasInstance is the well-known symbol %Symbol.hasInstance% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.6 Symbol.isConcatSpreadable
+
+The initial value of Symbol.isConcatSpreadable is the well-known symbol %Symbol.isConcatSpreadable% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.7 Symbol.iterator
+
+The initial value of Symbol.iterator is the well-known symbol %Symbol.iterator% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.8 Symbol.keyFor ( symbol )
+
+This function performs the following steps when called:
+
+- If symbol is not a Symbol , throw a TypeError exception.
+- Return KeyForSymbol ( symbol ).
+
+20.4.2.9 Symbol.match
+
+The initial value of Symbol.match is the well-known symbol %Symbol.match% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.10 Symbol.matchAll
+
+The initial value of Symbol.matchAll is the well-known symbol %Symbol.matchAll% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.11 Symbol.prototype
+
+The initial value of Symbol.prototype is the Symbol prototype object .
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.12 Symbol.replace
+
+The initial value of Symbol.replace is the well-known symbol %Symbol.replace% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.13 Symbol.search
+
+The initial value of Symbol.search is the well-known symbol %Symbol.search% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.14 Symbol.species
+
+The initial value of Symbol.species is the well-known symbol %Symbol.species% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.15 Symbol.split
+
+The initial value of Symbol.split is the well-known symbol %Symbol.split% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.16 Symbol.toPrimitive
+
+The initial value of Symbol.toPrimitive is the well-known symbol %Symbol.toPrimitive% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.17 Symbol.toStringTag
+
+The initial value of Symbol.toStringTag is the well-known symbol %Symbol.toStringTag% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.2.18 Symbol.unscopables
+
+The initial value of Symbol.unscopables is the well-known symbol %Symbol.unscopables% ( Table 1 ).
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : false }.
+
+20.4.3 Properties of the Symbol Prototype Object
+
+The Symbol prototype object :
+
+- is %Symbol.prototype% .
+
+- is an ordinary object .
+
+- is not a Symbol instance and does not have a [[SymbolData]] internal slot.
+
+- has a [[Prototype]] internal slot whose value is %Object.prototype% .
+
+20.4.3.1 Symbol.prototype.constructor
+
+The initial value of Symbol.prototype.constructor is %Symbol% .
+
+20.4.3.2 get Symbol.prototype.description
+
+Symbol.prototype.description is an accessor property whose set accessor function is undefined . Its get accessor function performs the following steps when called:
+
+- Let symbol be ? ThisSymbolValue ( this value).
+- Return symbol . [[Description]] .
+
+20.4.3.3 Symbol.prototype.toString ( )
+
+This method performs the following steps when called:
+
+- Let symbol be ? ThisSymbolValue ( this value).
+- Return SymbolDescriptiveString ( symbol ).
+
+20.4.3.3.1 SymbolDescriptiveString ( symbol )
+
+The abstract operation SymbolDescriptiveString takes argument symbol (a Symbol) and returns a String. It performs the following steps when called:
+
+- Let description be symbol . [[Description]] .
+- If description is undefined , set description to the empty String.
+- Assert : description is a String .
+- Return the string-concatenation of "Symbol(" , description , and ")" .
+
+20.4.3.4 Symbol.prototype.valueOf ( )
+
+This method performs the following steps when called:
+
+- Return ? ThisSymbolValue ( this value).
+
+20.4.3.4.1 ThisSymbolValue ( arg )
+
+The abstract operation ThisSymbolValue takes argument arg (an ECMAScript language value ) and returns either a normal completion containing a Symbol or a throw completion . It performs the following steps when called:
+
+- If arg is a Symbol , return arg .
+- If arg is an Object and arg has a [[SymbolData]] internal slot, then - Let symbol be arg . [[SymbolData]] .
+- Assert : symbol is a Symbol .
+- Return symbol .
+
+- Throw a TypeError exception.
+
+20.4.3.5 Symbol.prototype [ %Symbol.toPrimitive% ] ( hint )
+
+This method is called by ECMAScript language operators to convert a Symbol object to a primitive value.
+
+It performs the following steps when called:
+
+- Return ? ThisSymbolValue ( this value).
+
+Note
+The argument is ignored.
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : true }.
+
+The value of the "name" property of this method is "[Symbol.toPrimitive]" .
+
+20.4.3.6 Symbol.prototype [ %Symbol.toStringTag% ]
+
+The initial value of the %Symbol.toStringTag% property is the String value "Symbol" .
+
+This property has the attributes { [[Writable]] : false , [[Enumerable]] : false , [[Configurable]] : true }.
+
+20.4.4 Properties of Symbol Instances
+
+Symbol instances are ordinary objects that inherit properties from the Symbol prototype object . Symbol instances have a [[SymbolData]] internal slot. The [[SymbolData]] internal slot is the Symbol value represented by this Symbol object.
+
+20.4.5 Abstract Operations for Symbols
+
+20.4.5.1 GlobalSymbolRegistry Records
+
+A GlobalSymbolRegistry Record is a Record used to associate a String key with a Symbol value registered through Symbol.for .
+
+GlobalSymbolRegistry Records have the fields listed in Table 59 .
+
+Table 59: GlobalSymbolRegistry Record Fields
+
+Field Name
+Value
+Usage
+
+[[Key]]
+a String
+A string key used to globally identify a Symbol.
+
+[[Symbol]]
+a Symbol
+A symbol that can be retrieved from any realm .
+
+20.4.5.2 KeyForSymbol ( symbol )
+
+The abstract operation KeyForSymbol takes argument symbol (a Symbol) and returns a String or undefined . If symbol is in the surrounding agent 's [[GlobalSymbolRegistry]] List , the String used to register symbol will be returned. It performs the following steps when called:
+
+- Let agentRecord be the Agent Record of the surrounding agent .
+- Let globalSymbolRegistry be agentRecord . [[GlobalSymbolRegistry]] .
+- For each element element of globalSymbolRegistry , do - If SameValue ( element . [[Symbol]] , symbol ) is true , return element . [[Key]] .
+
+- Assert : globalSymbolRegistry does not currently contain an entry for symbol .
+- Return undefined .
