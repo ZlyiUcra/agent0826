@@ -79,9 +79,26 @@ www.rfc-editor.org і www.unicode.org; відповідь більша за MAX_
 відкидається; між зверненнями пауза. Наявні файли не перезаписуються без
 --refresh.
 
-    python -m practice.challenges.suite_download            # завантажити відсутнє
-    python -m practice.challenges.suite_download --list     # що буде записано, без запису
-    python -m practice.challenges.suite_download --refresh  # перезавантажити все наново
+ЩО ЗМІНИЛОСЯ НАГОРІ ЗА ТЕЧІЄЮ
+
+Про це питає --status, нічого не записуючи. Тут звірка виходить повна, на
+відміну від docs-full/. ECMA-402 приходить однією сторінкою, тож і перелік
+розділів, і вміст кожного з них коштують одне звернення. Вільні документи й PDF
+питаються умовним запитом «чи змінилося після нашої дати» — дату скрипт бере з
+шапки нашого ж документа, — і unicode.org із rfc-editor.org на це відповідають
+чесно, тілом не вантажачи.
+
+Окремо --status кричить про зсув розділів ECMA-402: імена файлів несуть номер
+розділу, тому вклинений розділ перейменовує всі наступні, а за іменами їдуть
+ідентифікатори фрагментів і номери точок у Qdrant. Маршрутів спеціалістів це не
+зачіпає — документи інших стандартів бачить лише GENERAL.
+
+    python -m practice.challenges.suite_download             # завантажити відсутнє
+    python -m practice.challenges.suite_download --list      # що буде записано, без запису
+    python -m practice.challenges.suite_download --status    # що змінилося, нічого не пише
+    python -m practice.challenges.suite_download --manifest  # зібрати index.json з того, що на диску
+    python -m practice.challenges.suite_download --refresh   # перезавантажити все наново
+    python -m practice.challenges.suite_download --refresh uts10-collation-algorithm   # лише один
 """
 
 import io
@@ -94,6 +111,7 @@ import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 
+from practice.challenges import manifest
 from practice.challenges import spec_download as sd
 
 DOCS_SUITE = pathlib.Path(__file__).resolve().parent.parent / "docs-suite"
@@ -448,12 +466,186 @@ def document_reference(data: bytes, key: str, stamp: str) -> str:
 
 # ── точка входу ───────────────────────────────────────────────────────────
 
+# ── Стан набору: що змінилося нагорі за течією ────────────────────────────
+
+def id_of(file: str) -> str:
+    """Ідентифікатор документа з імені файла.
+
+    Для розділів ECMA-402 це слаг розділу без номера («402-08-intl-object.txt»
+    → «intl-object»), бо номер розділу — це те, що зсувається. Для вільних
+    документів ім'я файла і є ключем таблиці адрес, там зсуву не буває.
+    """
+    stem = file[:-4] if file.endswith(".txt") else file
+    if stem.startswith("402-"):
+        _, _, slug = stem[4:].partition("-")
+        return slug or stem[4:]
+    return stem
+
+
+def fetch_if_newer(url: str, since: str) -> tuple[str, bytes]:
+    """Документ, якщо він змінився після дати, коли ми його брали.
+
+    Перше значення — «304», коли сервер каже, що документ не змінювався; «200»,
+    коли віддав його; рядок, що починається зі «збій», коли не вийшло — причина
+    прямо в ньому. unicode.org і rfc-editor.org відповідають на таке питання
+    чесно, тому звірка вільних документів коштує майже нічого.
+    """
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme != "https" or parts.hostname not in ALLOWED_HOSTS:
+        return ("збій: адреса поза дозволеними", b"")
+    headers = {"User-Agent": "agent0826-practice/1.0"}
+    if since:
+        try:
+            headers["If-Modified-Since"] = sd.since_header(since)
+        except ValueError:
+            pass
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SEC) as resp:
+            data = resp.read(MAX_BYTES + 1)
+        if len(data) > MAX_BYTES:
+            return (f"збій: більше за {MAX_BYTES} байтів", b"")
+        return ("200", data)
+    except urllib.error.HTTPError as e:
+        return ("304", b"") if e.code == 304 else (f"збій: HTTP {e.code}", b"")
+    except urllib.error.URLError as e:
+        return (f"збій: {e.reason}", b"")
+
+
+def write_manifest() -> int:
+    """Збирає index.json з документів, які вже лежать на диску. Без мережі."""
+    if not DOCS_SUITE.exists() or not any(DOCS_SUITE.glob("*.txt")):
+        print(f"У {DOCS_SUITE} немає жодного .txt — нічого описувати.")
+        return 1
+    data = manifest.build(DOCS_SUITE, id_of, time.strftime("%Y-%m-%d"))
+    path = manifest.save(DOCS_SUITE, data)
+    print(f"── Маніфест {path.name}: {len(data['documents'])} документів ──")
+    return 0
+
+
+def _verdict(was: dict | None, fresh_body: str) -> str:
+    """«новий», «без змін» або «змінився» — за сумою тіла документа."""
+    if was is None:
+        return "новий"
+    if was.get("sha256") == manifest.digest(fresh_body):
+        return "без змін"
+    return (f"ЗМІНИВСЯ: було {was.get('chars')} символів, "
+            f"стало {len(fresh_body)}")
+
+
+def status() -> int:
+    """Що змінилося в наборі. Нічого не записує.
+
+    Тут звірка повна, на відміну від docs-full/: уся ECMA-402 приходить однією
+    сторінкою, тож і перелік розділів, і їхній вміст коштують одне звернення, а
+    вільні документи звіряються умовним запитом, на який сервер здебільшого
+    відповідає «не змінювався» і тіла не шле.
+    """
+    print(f"── Стан {DOCS_SUITE.name}/ ──")
+    data = manifest.load(DOCS_SUITE)
+    if data is None:
+        disk = sorted(DOCS_SUITE.glob("*.txt"))
+        known = {id_of(p.name): {"file": p.name} for p in disk}
+        was_402 = [id_of(p.name) for p in disk if p.name.startswith("402-")]
+        print("  маніфесту немає, порівнюю з іменами файлів на диску "
+              "(зібрати маніфест: --manifest)")
+    else:
+        known = manifest.by_id(data)
+        was_402 = [d["id"] for d in data["documents"]
+                   if d["file"].startswith("402-")]
+
+    stamp = time.strftime("%Y-%m-%d")
+    same = changed = added = failed = 0
+
+    print(f"── ECMA-402 з {URL_402} ──")
+    try:
+        page = _fetch(URL_402).decode("utf-8")
+    except urllib.error.URLError as e:
+        print(f"  ЗБІЙ: {e.reason}")
+        return 1
+    plan = [(name_402(num, cid), cid, chunk)
+            for cid, num, chunk in chapters_402(page)]
+    now_402 = [_slug(cid) for _, cid, _ in plan]
+    print(f"  розділів на сторінці {len(now_402)}, на нашому боці {len(was_402)}")
+    manifest.report_shift(was_402, now_402, [name for name, _, _ in plan], known,
+                          "документи ECMA-402 маршрутам спеціалістів не належать —\n"
+                          "їх бачить лише GENERAL, тож FAMILIES зсув не зачіпає.")
+    for (_, cid, chunk), doc in zip(plan, now_402):
+        body = manifest.body_of(document_402(chunk, cid, stamp))
+        verdict = _verdict(known.get(doc), body)
+        if verdict == "без змін":
+            same += 1
+        elif verdict == "новий":
+            print(f"  {doc}  новий, у нас його немає")
+            added += 1
+        else:
+            print(f"  {doc}  {verdict}")
+            changed += 1
+
+    print("── Вільні документи і PDF: умовний запит ──")
+    plain = [(key, url, title) for key, (url, title) in PDFS.items()]
+    plain += [(key, url, title) for key, (url, title, _) in REFERENCES.items()]
+    for key, url, title in plain:
+        was = known.get(key)
+        if was is None:
+            print(f"  {key}  новий, у нас його немає")
+            added += 1
+            continue
+        code, payload = fetch_if_newer(url, was.get("fetched", ""))
+        if code.startswith("збій"):
+            print(f"  {key}  {code}")
+            failed += 1
+        elif code == "304":
+            print(f"  {key}  без змін (сервер: не змінювався з {was.get('fetched')})")
+            same += 1
+        else:
+            try:
+                if key in PDFS:
+                    body = manifest.body_of(document_pdf(payload, title, url, stamp))
+                else:
+                    body = manifest.body_of(document_reference(payload, key, stamp))
+            except SystemExit as e:
+                print(f"  {key}  ЗБІЙ розбору: {e}")
+                failed += 1
+                time.sleep(PAUSE_SEC)
+                continue
+            verdict = _verdict(was, body)
+            if verdict == "без змін":
+                print(f"  {key}  без змін (сума тіла збіглася)")
+                same += 1
+            else:
+                print(f"  {key}  {verdict}")
+                changed += 1
+        time.sleep(PAUSE_SEC)
+
+    expected = [name for name, _, _ in plan]
+    expected += [f"{key}.txt" for key in PDFS]
+    expected += [f"{key}.txt" for key in REFERENCES]
+    extra = manifest.orphans(DOCS_SUITE, expected)
+    if extra:
+        print(f"── Сироти: {len(extra)} файлів, яких немає в переліку адрес ──")
+        for name in extra:
+            print(f"  {name}")
+        print("  нічого не видалено — що з ними робити, вирішувати вам")
+
+    print(f"── Без змін {same}, змінилося {changed}, нових {added}, "
+          f"збоїв {failed}. Не записано нічого ──")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     if "-h" in argv or "--help" in argv:
         print(__doc__)
         return 0
+    if "--manifest" in argv:
+        return write_manifest()
+    if "--status" in argv:
+        return status()
     listing = "--list" in argv
     refresh = "--refresh" in argv
+    # Усе, що не прапорець, — ідентифікатор документа: «--refresh uts10-collation-
+    # algorithm» перезаписує один документ, «--refresh» без імен — увесь набір.
+    targets = {a for a in argv if not a.startswith("-")}
     stamp = time.strftime("%Y-%m-%d")
 
     print(f"── ECMA-402 з {URL_402} ──")
@@ -465,12 +657,18 @@ def main(argv: list[str]) -> int:
         DOCS_SUITE.mkdir(exist_ok=True)
     written = skipped = total = 0
 
+    def wanted(path: pathlib.Path) -> bool:
+        """Чи оновлювати саме цей документ. Без імен у рядку — всі."""
+        return refresh and (not targets
+                            or id_of(path.name) in targets
+                            or path.name in targets)
+
     def put(path: pathlib.Path, make) -> None:
         nonlocal written, skipped, total
         if listing:
             print(f"  {path.name}")
             return
-        if path.exists() and not refresh:
+        if path.exists() and not wanted(path):
             size = len(path.read_text(encoding="utf-8"))
             total += size
             skipped += 1
@@ -488,7 +686,7 @@ def main(argv: list[str]) -> int:
     for key, (url, title) in PDFS.items():
         print(f"── {title} з {url} ──")
         path = DOCS_SUITE / f"{key}.txt"
-        if listing or (path.exists() and not refresh):
+        if listing or (path.exists() and not wanted(path)):
             put(path, None)
             continue
         time.sleep(PAUSE_SEC)
@@ -502,7 +700,7 @@ def main(argv: list[str]) -> int:
     for key, (url, title, kind) in REFERENCES.items():
         print(f"── {title} з {url} ──")
         path = DOCS_SUITE / f"{key}.txt"
-        if listing or (path.exists() and not refresh):
+        if listing or (path.exists() and not wanted(path)):
             put(path, None)
             continue
         time.sleep(PAUSE_SEC)

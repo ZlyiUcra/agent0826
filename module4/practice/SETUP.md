@@ -75,6 +75,7 @@ docker compose up -d                                  # підняти базу 
 .venv/bin/python -m practice.challenges.qdrant_store --info      # що в ній зараз
 .venv/bin/python -m practice.challenges.qdrant_store --migrate   # перенести все, що є
 .venv/bin/python -m practice.challenges.suite_download           # $0: 402, 404, 414 і документи довкола 402
+.venv/bin/python -m practice.challenges.suite_download --status  # $0: чи не змінилося джерело; нічого не пише
 PRACTICE_DOCS=suite .venv/bin/python -m practice.challenges.qdrant_store   # залити набір suite у spec-suite-e5
 ```
 
@@ -164,8 +165,8 @@ request_handoff` — інструмент прибрано зі списку GEN
 - `PRACTICE_EMBED_MODEL` — `e5` (типово) або `bge`: модель ембедингів, кеші в них окремі.
 - `PRACTICE_DOCS` — `core` (вісімнадцять розділів навколо `sec-object-type`), `full` (уся специфікація
   ECMA-262: 38 розділів у `practice/docs-full/`, 2436 фрагментів) або `suite` (та сама `docs-full/` плюс
-  ECMA-402, 404, 414 і десять вільних документів довкола 402 у `docs-suite/`: 72 документи, 4171
-  фрагмент).
+  ECMA-402, 404, 414 і десять вільних документів довкола 402 у `docs-suite/`: 72 документи, 4162
+  фрагменти).
 - `QDRANT_URL`, `QDRANT_AUTO_INGEST` і решта налаштувань бази — у `STORAGE.md` і в `.env.example`.
 
 ## Правила розробки

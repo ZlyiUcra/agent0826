@@ -149,6 +149,18 @@
   .venv/bin/python -m practice.challenges.suite_download
   PRACTICE_DOCS=suite .venv/bin/python -m practice.base.probe --suite
   ```
+- Чи не змінилося нагорі за течією ($0, нічого не записує): `--status` звіряє те, що лежить на диску, з
+  джерелом. Для `docs-suite/` звірка повна за тринадцять звернень — уся ECMA-402 приходить однією
+  сторінкою, а вільні документи питаються умовним запитом «чи змінилося після нашої дати». Для
+  `docs-full/` дешева перевірка лише про перелік розділів: tc39.es перезбирає видання на кожен злитий
+  запит, тож про вміст чесно каже лише `--deep`, а це тридцять вісім звернень. Окремо `--status` кричить
+  про зсув — розділ, вклинений у зміст, перейменовує всі наступні, а за іменами їдуть ідентифікатори
+  фрагментів, номери точок у Qdrant і номери розділів у `FAMILIES`.
+  ```
+  .venv/bin/python -m practice.challenges.spec_download --status
+  .venv/bin/python -m practice.challenges.suite_download --status
+  .venv/bin/python -m practice.challenges.suite_download --refresh locale-sensitive-functions
+  ```
 - Перелік п'яти запитів виміру і прапорців ($0):
   ```
   .venv/bin/python -m practice.base.system --list
@@ -518,12 +530,13 @@ practice/
     scale.py          вимір «де система обганяє» від обсягу корпусу, на дешевій моделі
     overlap.py        чи допомагає перетин фрагментів пошуку, $0
     qdrant_store.py   ті самі вектори, але в сервері Qdrant, $0 (потрібен Docker)
+    manifest.py       опис набору (index.json): адреса, дата і сума кожного документа, $0
     spec_download.py  вивантаження всієї специфікації у docs-full/, $0
     suite_download.py решта набору специфікацій (ECMA-402 з tc39.es, ECMA-404 і 414 з PDF) і десять
                       вільних документів довкола 402 (RFC 4647, звіти Unicode), у docs-suite/, $0
   docs-full/          уся специфікація, 38 розділів; вмикається PRACTICE_DOCS=full
   docs-suite/         ECMA-402 (22 документи), ECMA-404, ECMA-414 і десять документів довкола 402;
-                      разом із docs-full/ — набір PRACTICE_DOCS=suite: 72 документи, 4171 фрагмент
+                      разом із docs-full/ — набір PRACTICE_DOCS=suite: 72 документи, 4162 фрагменти
 ```
 
 Сховище фрагментів — база в Docker чи документи на диску — описане в `STORAGE.md`, і цей файл однаковий
