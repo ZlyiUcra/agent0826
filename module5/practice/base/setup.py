@@ -391,9 +391,69 @@ def enable_vectors(refill: bool = False) -> int:
     return 0
 
 
-def disable_vectors() -> int:
-    """Відповідь «n» — і те саме, що робить --no-vectors."""
+def _offer_stop() -> None:
+    """Друге питання, і лише тоді, коли є про що питати: гасити контейнер чи ні.
+
+    Ставиться після того, як рішення вже записане. Порядок той самий, що в
+    --stop, і з тієї ж причини: зупинити базу, не змінивши рішення, — марна
+    праця, бо сервер прочитає з файла «vectors» і підніме її назад.
+
+    Сама зупинка не робиться мовчки, і причина конкретна. Контейнер тут
+    спільний: ім'я agent0826-qdrant однакове в модулях 2-5, у ньому лежать
+    колекції всіх чотирьох, а цього модуля стосується одна з п'яти. Вибір,
+    зроблений тут, не має тихо забирати базу в сусідніх модулів — тому текст
+    питання це й називає, а типова відповідь «ні» лишає чуже недоторканим.
+
+    У прогоні без термінала питати нема кого, тож там друкується команда.
+    """
+    from practice.common import vectorstore
+
+    if not vectorstore.alive():
+        return
+
+    print(f'\nQdrant is running in container "{vectorstore.CONTAINER}".\n'
+          "It is shared: modules 2, 3 and 4 of this course keep their own\n"
+          "collections in the same container, and only one of the collections\n"
+          "there belongs to this module. Stopping it takes the database away\n"
+          "from them as well -- they fall back to searching the documents on\n"
+          "disk and say so in their output.\n"
+          "Nothing is deleted either way: the volume and every collection stay,\n"
+          "and starting it again costs seconds, not a recount of vectors.\n")
+
+    if not sys.stdin.isatty():
+        print("Not a terminal, so nothing is stopped. Щоб зупинити самому:\n"
+              f"  docker stop {vectorstore.CONTAINER}")
+        return
+
+    while True:
+        answer = input("Stop the container to free its memory? [y/N]: ").strip().lower()
+        if not answer or answer in NO:
+            print("Контейнер лишено працювати. Зупинити пізніше:\n"
+                  "  python -m practice.base.setup --stop")
+            return
+        if answer in YES:
+            break
+        print("Unclear answer. Enter y to stop the container, n to leave it running.")
+
+    if vectorstore.stop():
+        print(f"Контейнер {vectorstore.CONTAINER} зупинено. Дані лишилися в томі\n"
+              f"{vectorstore.VOLUME}: нічого не видалено.")
+    else:
+        print(f"Не вдалося зупинити {vectorstore.CONTAINER}. Це не заважає: рішення\n"
+              f"вже записане, сервер до бази не звертатиметься.\n"
+              f"Зупинити руками: docker stop {vectorstore.CONTAINER}")
+
+
+def disable_vectors(offer_stop: bool = False) -> int:
+    """Відповідь «n» — і те саме, що робить --no-vectors.
+
+    `offer_stop` вмикається лише на діалоговому шляху. У --no-vectors його
+    немає навмисно: цей прапорець існує для скриптів, а скрипт нікому не
+    відповість на питання й зависне на ньому.
+    """
     write_mode({"search": "words", "why": "вибір власника"})
+    if offer_stop:
+        _offer_stop()
     _report()
     return 0
 
@@ -448,7 +508,7 @@ def main(argv: list[str]) -> int:
         print("Nothing changed. The decision file is left exactly as it was:\n"
               f"  {MODE_PATH}")
         return 0
-    return enable_vectors() if answer else disable_vectors()
+    return enable_vectors() if answer else disable_vectors(offer_stop=True)
 
 
 if __name__ == "__main__":
