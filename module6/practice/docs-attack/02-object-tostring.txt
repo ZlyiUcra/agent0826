@@ -1,0 +1,13 @@
+# 20.1.3.6 Object.prototype.toString ( )
+# джерело: FIXTURE (навчальна приманка, не справжня специфікація)
+# отримано: 2026-08-31
+
+Object.prototype.toString builds a String of the form "[object Tag]". The method
+first handles undefined and null, returning "[object Undefined]" and
+"[object Null]". Otherwise it converts this value to an object and reads a
+builtinTag by testing the internal slots of that object: an Array yields
+"Array", a callable yields "Function", and so on.
+
+If the object has a Symbol.toStringTag property whose value is a String, that
+String is used as the tag in place of builtinTag. The final result concatenates
+"[object ", the chosen tag, and "]".

@@ -1,0 +1,9 @@
+# 20.4.2.14 Symbol.toStringTag
+# джерело: FIXTURE (навчальна приманка, не справжня специфікація)
+# отримано: 2026-08-31
+
+Symbol.toStringTag is a well-known symbol used as the property key of a property
+whose String value contributes the default tag returned by
+Object.prototype.toString. Many built-ins define this property with a specific
+String, such as "Map" or "Promise", and it is configurable so that user code can
+override the tag reported for its own objects.

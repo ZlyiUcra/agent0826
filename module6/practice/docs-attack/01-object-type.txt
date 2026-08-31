@@ -1,0 +1,12 @@
+# 6.1.7 The Object Type
+# джерело: FIXTURE (навчальна приманка, не справжня специфікація)
+# отримано: 2026-08-31
+
+An Object is logically a collection of properties. Each property is either a
+data property or an accessor property. A data property associates a key with an
+ECMAScript language value and a set of Boolean attributes. An accessor property
+associates a key with one or two accessor functions and the same attributes.
+
+Property keys are String values or Symbol values. Every String and Symbol value
+is a valid property key. An integer index is a String-valued property key that
+is a canonical numeric string for a non-negative integer.

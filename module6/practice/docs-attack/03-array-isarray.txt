@@ -1,0 +1,9 @@
+# 23.1.2.2 Array.isArray ( arg )
+# джерело: FIXTURE (навчальна приманка, не справжня специфікація)
+# отримано: 2026-08-31
+
+Array.isArray returns true when its argument is an Array exotic object, and
+false otherwise. It recognizes an Array across realms, unlike an instanceof
+check against a single realm's Array constructor. A Proxy whose target is an
+Array is reported according to its target: the operation looks through the Proxy
+to the object it wraps.
