@@ -1,0 +1,840 @@
+# 6.1.7 The Object Type
+# джерело: https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-object-type
+# отримано: 2026-08-25
+
+6.1.7 The Object Type
+
+Each instance of the Object type , also referred to simply as “an Object”, represents a collection of properties. Each property is either a data property, or an accessor property:
+
+-
+A data property associates a key value with an ECMAScript language value and a set of Boolean attributes.
+
+-
+An accessor property associates a key value with one or two accessor functions, and a set of Boolean attributes. The accessor functions are used to store or retrieve an ECMAScript language value that is associated with the property.
+
+The properties of an object are uniquely identified using property keys . A property key is either a String or a Symbol. All Strings and Symbols, including the empty String, are valid as property keys . A property name is a property key that is a String .
+
+An integer index is a property name n such that CanonicalNumericIndexString ( n ) returns an integral Number in the inclusive interval from +0 𝔽 to 𝔽 (2 53 - 1). An array index is an integer index n such that CanonicalNumericIndexString ( n ) returns an integral Number in the inclusive interval from +0 𝔽 to 𝔽 (2 32 - 2).
+
+Note
+Every non-negative safe integer has a corresponding integer index . Every 32-bit unsigned integer except 2 32 - 1 has a corresponding array index . "-0" is neither an integer index nor an array index .
+
+Property keys are used to access properties and their values. There are two kinds of access for properties: get and set , corresponding to value retrieval and assignment, respectively. The properties accessible via get and set access includes both own properties that are a direct part of an object and inherited properties which are provided by another associated object via a property inheritance relationship. Inherited properties may be either own or inherited properties of the associated object. Each own property of an object must each have a key value that is distinct from the key values of the other own properties of that object.
+
+All objects are logically collections of properties, but there are multiple forms of objects that differ in their semantics for accessing and manipulating their properties. Please see 6.1.7.2 for definitions of the multiple forms of objects.
+
+In addition, some objects are callable; these are referred to as functions or function objects and are described further below. All functions in ECMAScript are members of the Object type.
+
+6.1.7.1 Property Attributes
+
+Attributes are used in this specification to define and explain the state of Object properties as described in Table 3 . Unless specified explicitly, the initial value of each attribute is its Default Value.
+
+Table 3: Attributes of an Object property
+
+Attribute Name
+Types of property for which it is present
+Value Domain
+Default Value
+Description
+
+[[Value]]
+
+data property
+
+an ECMAScript language value
+
+undefined
+
+The value retrieved by a get access of the property.
+
+[[Writable]]
+
+data property
+
+a Boolean
+
+false
+
+If false , attempts by ECMAScript code to change the property's [[Value]] attribute using [[Set]] will not succeed.
+
+[[Getter]]
+
+accessor property
+
+a function object or undefined
+
+undefined
+
+If the value is not undefined , its [[Call]] internal method ( Table 5 ) is called with an empty arguments list to retrieve the property value each time a get access of the property is performed.
+
+[[Setter]]
+
+accessor property
+
+a function object or undefined
+
+undefined
+
+If the value is not undefined , its [[Call]] internal method ( Table 5 ) is called with an arguments list containing the assigned value as its sole argument each time a set access of the property is performed. The effect of a property's [[Setter]] internal method may, but is not required to, have an effect on the value returned by subsequent calls to the property's [[Getter]] internal method.
+
+[[Enumerable]]
+
+data property or accessor property
+
+a Boolean
+
+false
+
+If true , the property will be enumerated by a for-in enumeration (see 14.7.5 ). Otherwise, the property is said to be non-enumerable.
+
+[[Configurable]]
+
+data property or accessor property
+
+a Boolean
+
+false
+
+If false , attempts to delete the property, change it from a data property to an accessor property or from an accessor property to a data property , or make any changes to its attributes (other than replacing an existing [[Value]] or setting [[Writable]] to false ) will fail.
+
+6.1.7.2 Object Internal Methods and Internal Slots
+
+The actual semantics of objects, in ECMAScript, are specified via algorithms called internal methods . Each object in an ECMAScript engine is associated with a set of internal methods that defines its runtime behaviour. These internal methods are not part of the ECMAScript language. They are defined by this specification purely for expository purposes. However, each object within an implementation of ECMAScript must behave as specified by the internal methods associated with it. The exact manner in which this is accomplished is determined by the implementation.
+
+Internal method names are polymorphic. This means that different object values may perform different algorithms when a common internal method name is invoked upon them. That actual object upon which an internal method is invoked is the “target” of the invocation. If, at runtime, the implementation of an algorithm attempts to use an internal method of an object that the object does not support, a TypeError exception is thrown.
+
+Internal slots correspond to internal state that is associated with objects, Symbols, or Private Names and used by various ECMAScript specification algorithms. Internal slots are not object properties and they are not inherited. Depending upon the specific internal slot specification, such state may consist of values of any ECMAScript language type or of specific ECMAScript specification type values. Unless explicitly specified otherwise, internal slots are allocated as part of the process of creating an object, Symbol, or Private Name and may not be dynamically added. Unless specified otherwise, the initial value of an internal slot is the value undefined . Various algorithms within this specification create values that have internal slots. However, the ECMAScript language provides no direct way to manipulate internal slots.
+
+All objects have an internal slot named [[PrivateElements]] , which is a List of PrivateElements . This List represents the values of the private fields, methods, and accessors for the object. Initially, it is an empty List .
+
+Internal methods and internal slots are identified within this specification using names enclosed in double square brackets [[ ]].
+
+Table 4 summarizes the essential internal methods used by this specification that are applicable to all objects created or manipulated by ECMAScript code. Every object must have algorithms for all of the essential internal methods. However, all objects do not necessarily use the same algorithms for those methods.
+
+An ordinary object is an object that satisfies all of the following criteria:
+
+-
+For the internal methods listed in Table 4 , the object uses those defined in 10.1 .
+
+-
+If the object has a [[Call]] internal method, it uses either the one defined in 10.2.1 or the one defined in 10.3.1 .
+
+-
+If the object has a [[Construct]] internal method, it uses either the one defined in 10.2.2 or the one defined in 10.3.2 .
+
+An exotic object is an object that is not an ordinary object .
+
+This specification recognizes different kinds of exotic objects by those objects' internal methods. An object that is behaviourally equivalent to a particular kind of exotic object (such as an Array exotic object or a bound function exotic object ), but does not have the same collection of internal methods specified for that kind, is not recognized as that kind of exotic object .
+
+The “Signature” column of Table 4 and other similar tables describes the invocation pattern for each internal method. The invocation pattern always includes a parenthesized list of descriptive parameter names. If a parameter name is the same as an ECMAScript type name then the name describes the required type of the parameter value. If an internal method explicitly returns a value, its parameter list is followed by the symbol “→” and the type name of the returned value. The type names used in signatures refer to the types defined in clause 6 augmented by the following additional names. “ any ” means the value may be any ECMAScript language type .
+
+In addition to its parameters, an internal method always has access to the object that is the target of the method invocation.
+
+An internal method implicitly returns a Completion Record , either a normal completion that wraps a value of the return type shown in its invocation pattern, or a throw completion .
+
+Table 4: Essential Internal Methods
+
+Internal Method
+
+Signature
+
+Description
+
+[[GetPrototypeOf]]
+
+( ) → Object | Null
+
+Determine the object that provides inherited properties for this object. A null value indicates that there are no inherited properties.
+
+[[SetPrototypeOf]]
+
+(Object | Null) → Boolean
+
+Associate this object with another object that provides inherited properties. Passing null indicates that there are no inherited properties. Returns true indicating that the operation was completed successfully or false indicating that the operation was not successful.
+
+[[IsExtensible]]
+
+( ) → Boolean
+
+Determine whether it is permitted to add additional properties to this object.
+
+[[PreventExtensions]]
+
+( ) → Boolean
+
+Control whether new properties may be added to this object. Returns true if the operation was successful or false if the operation was unsuccessful.
+
+[[GetOwnProperty]]
+
+( propertyKey ) → Undefined | Property Descriptor
+
+Return a Property Descriptor for the own property of this object whose key is propertyKey , or undefined if no such property exists.
+
+[[DefineOwnProperty]]
+
+( propertyKey , propertyDesc ) → Boolean
+
+Create or alter the own property, whose key is propertyKey , to have the state described by propertyDesc . Return true if that property was successfully created/updated or false if the property could not be created or updated.
+
+[[HasProperty]]
+
+( propertyKey ) → Boolean
+
+Return a Boolean value indicating whether this object already has either an own or inherited property whose key is propertyKey .
+
+[[Get]]
+
+( propertyKey , receiver ) → any
+
+Return the value of the property whose key is propertyKey from this object. If any ECMAScript code must be executed to retrieve the property value, receiver is used as the this value when evaluating the code.
+
+[[Set]]
+
+( propertyKey , value , receiver ) → Boolean
+
+Set the value of the property whose key is propertyKey to value . If any ECMAScript code must be executed to set the property value, receiver is used as the this value when evaluating the code. Returns true if the property value was set or false if it could not be set.
+
+[[Delete]]
+
+( propertyKey ) → Boolean
+
+Remove the own property whose key is propertyKey from this object. Return false if the property was not deleted and is still present. Return true if the property was deleted or is not present.
+
+[[OwnPropertyKeys]]
+
+( ) → List of property keys
+
+Return a List whose elements are all of the own property keys for the object.
+
+Table 5 summarizes additional essential internal methods that are supported by objects that may be called as functions. A function object is an object that supports the [[Call]] internal method. A constructor is an object that supports the [[Construct]] internal method. Every object that supports [[Construct]] must support [[Call]] ; that is, every constructor must be a function object . Therefore, a constructor may also be referred to as a constructor function or constructor function object .
+
+Table 5: Additional Essential Internal Methods of Function Objects
+
+Internal Method
+
+Signature
+
+Description
+
+[[Call]]
+
+( any , a List of any ) → any
+
+Executes code associated with this object. Invoked via a function call expression. The arguments to the internal method are a this value and a List whose elements are the arguments passed to the function by a call expression. Objects that implement this internal method are callable .
+
+[[Construct]]
+
+(a List of any , Object) → Object
+
+Creates an object. Invoked via the new operator or a super call. The first argument to the internal method is a List whose elements are the arguments of the constructor invocation or the super call. The second argument is the object to which the new operator was initially applied. Objects that implement this internal method are called constructors . A function object is not necessarily a constructor and such non- constructor function objects do not have a [[Construct]] internal method.
+
+The semantics of the essential internal methods for ordinary objects and standard exotic objects are specified in clause 10 . If any specified use of an internal method of an exotic object is not supported by an implementation, that usage must throw a TypeError exception when attempted.
+
+6.1.7.3 Invariants of the Essential Internal Methods
+
+The Internal Methods of Objects of an ECMAScript engine must conform to the list of invariants specified below. Ordinary ECMAScript Objects as well as all standard exotic objects in this specification maintain these invariants. ECMAScript Proxy objects maintain these invariants by means of runtime checks on the result of traps invoked on the [[ProxyHandler]] object.
+
+Any implementation provided exotic objects must also maintain these invariants for those objects. Violation of these invariants may cause ECMAScript code to have unpredictable behaviour and create security issues. However, violation of these invariants must never compromise the memory safety of an implementation.
+
+An implementation must not allow these invariants to be circumvented in any manner such as by providing alternative interfaces that implement the functionality of the essential internal methods without enforcing their invariants.
+
+Definitions:
+
+-
+The target of an internal method is the object upon which the internal method is called.
+
+-
+A target is non-extensible if it has been observed to return false from its [[IsExtensible]] internal method, or true from its [[PreventExtensions]] internal method.
+
+-
+A non-existent property is a property that does not exist as an own property on a non-extensible target.
+
+-
+All references to SameValue are according to the definition of the SameValue algorithm.
+
+Return value:
+
+The value returned by any internal method must be a Completion Record with either:
+
+- [[Type]] = normal , [[Target]] = empty , and [[Value]] = a value of the “normal return type” shown below for that internal method, or
+
+- [[Type]] = throw , [[Target]] = empty , and [[Value]] = any ECMAScript language value .
+
+Note 1
+An internal method must not return a continue completion , a break completion , or a return completion .
+
+[[GetPrototypeOf]] ( )
+
+-
+The normal return type is either Object or Null.
+
+-
+If target is non-extensible, and [[GetPrototypeOf]] returns a value proto , then any future calls to [[GetPrototypeOf]] should return the SameValue as proto .
+
+Note 2
+An object's prototype chain should have finite length (that is, starting from any object, recursively applying the [[GetPrototypeOf]] internal method to its result should eventually lead to the value null ). However, this requirement is not enforceable as an object level invariant if the prototype chain includes any exotic objects that do not use the ordinary object definition of [[GetPrototypeOf]] . Such a circular prototype chain may result in infinite loops when accessing object properties.
+
+[[SetPrototypeOf]] ( proto )
+
+-
+The normal return type is Boolean.
+
+-
+If target is non-extensible, [[SetPrototypeOf]] must return false , unless proto is the SameValue as the target's observed [[GetPrototypeOf]] value.
+
+[[IsExtensible]] ( )
+
+-
+The normal return type is Boolean.
+
+-
+If [[IsExtensible]] returns false , all future calls to [[IsExtensible]] on the target must return false .
+
+[[PreventExtensions]] ( )
+
+-
+The normal return type is Boolean.
+
+-
+If [[PreventExtensions]] returns true , all future calls to [[IsExtensible]] on the target must return false and the target is now considered non-extensible.
+
+[[GetOwnProperty]] ( propertyKey )
+
+-
+The normal return type is either Property Descriptor or Undefined.
+
+-
+If the return value is a Property Descriptor , it must be a fully populated Property Descriptor .
+
+-
+If propertyKey is described as a non-configurable, non-writable own data property , all future calls to [[GetOwnProperty]] ( propertyKey ) must return Property Descriptor whose [[Value]] is SameValue as propertyKey 's [[Value]] attribute.
+
+-
+If propertyKey 's attributes other than [[Writable]] and [[Value]] may change over time, or if the property might be deleted, then propertyKey 's [[Configurable]] attribute must be true .
+
+-
+If the [[Writable]] attribute may change from false to true , then the [[Configurable]] attribute must be true .
+
+-
+If the target is non-extensible and propertyKey is non-existent, then all future calls to [[GetOwnProperty]] ( propertyKey ) on the target must describe propertyKey as non-existent (i.e. [[GetOwnProperty]] ( propertyKey ) must return undefined ).
+
+Note 3
+As a consequence of the third invariant, if a property is described as a data property and it may return different values over time, then either or both of the [[Writable]] and [[Configurable]] attributes must be true even if no mechanism to change the value is exposed via the other essential internal methods.
+
+[[DefineOwnProperty]] ( propertyKey , propertyDesc )
+
+-
+The normal return type is Boolean.
+
+-
+[[DefineOwnProperty]] must return false if propertyKey has previously been observed as a non-configurable own property of the target, unless either:
+
+-
+propertyKey is a writable data property . A non-configurable writable data property can be changed into a non-configurable non-writable data property .
+
+-
+All attributes of propertyDesc are the SameValue as propertyKey 's attributes.
+
+-
+[[DefineOwnProperty]] ( propertyKey , propertyDesc ) must return false if target is non-extensible and propertyKey is a non-existent own property. That is, a non-extensible target object cannot be extended with new properties.
+
+[[HasProperty]] ( propertyKey )
+
+-
+The normal return type is Boolean.
+
+-
+If propertyKey was previously observed as a non-configurable own data or accessor property of the target, [[HasProperty]] must return true .
+
+[[Get]] ( propertyKey , receiver )
+
+-
+The normal return type is any ECMAScript language type .
+
+-
+If propertyKey was previously observed as a non-configurable, non-writable own data property of the target with value value , then [[Get]] must return the SameValue as value .
+
+-
+If propertyKey was previously observed as a non-configurable own accessor property of the target whose [[Getter]] attribute is undefined , the [[Get]] operation must return undefined .
+
+[[Set]] ( propertyKey , value , receiver )
+
+-
+The normal return type is Boolean.
+
+-
+If propertyKey was previously observed as a non-configurable, non-writable own data property of the target, then [[Set]] must return false unless value is the SameValue as propertyKey 's [[Value]] attribute.
+
+-
+If propertyKey was previously observed as a non-configurable own accessor property of the target whose [[Setter]] attribute is undefined , the [[Set]] operation must return false .
+
+[[Delete]] ( propertyKey )
+
+-
+The normal return type is Boolean.
+
+-
+If propertyKey was previously observed as a non-configurable own data or accessor property of the target, [[Delete]] must return false .
+
+[[OwnPropertyKeys]] ( )
+
+-
+The normal return type is List .
+
+-
+The returned List must not contain any duplicate entries.
+
+-
+Each element of the returned List must be a property key .
+
+-
+The returned List must contain at least the keys of all non-configurable own properties that have previously been observed.
+
+-
+If the target is non-extensible, the returned List must contain only the keys of all own properties of the target that are observable using [[GetOwnProperty]] .
+
+[[Call]] ( )
+
+-
+The normal return type is any ECMAScript language type .
+
+[[Construct]] ( )
+
+-
+The normal return type is Object.
+
+-
+The target must also have a [[Call]] internal method.
+
+6.1.7.4 Well-Known Intrinsic Objects
+
+Well-known intrinsics are built-in objects that are explicitly referenced by the algorithms of this specification and which usually have realm -specific identities. Unless otherwise specified each intrinsic object actually corresponds to a set of similar objects, one per realm .
+
+Within this specification a reference such as %name% means the intrinsic object, associated with the current realm , corresponding to the name. A reference such as %name.a.b% means, as if the "b" property of the value of the "a" property of the intrinsic object %name% was accessed prior to any ECMAScript code being evaluated. Determination of the current realm and its intrinsics is described in 9.4 . The well-known intrinsics are listed in Table 6 .
+
+Table 6: Well-Known Intrinsic Objects
+
+Intrinsic Name
+
+Global Name
+
+ECMAScript Language Association
+
+%AggregateError%
+
+"AggregateError"
+
+The AggregateError constructor ( 20.5.7.1 )
+
+%Array%
+
+"Array"
+
+The Array constructor ( 23.1.1 )
+
+%ArrayBuffer%
+
+"ArrayBuffer"
+
+The ArrayBuffer constructor ( 25.1.4 )
+
+%ArrayIteratorPrototype%
+
+The prototype of Array Iterator objects ( 23.1.5 )
+
+%AsyncDisposableStack%
+
+"AsyncDisposableStack"
+
+The AsyncDisposableStack constructor ( 27.4.1 )
+
+%AsyncFromSyncIteratorPrototype%
+
+The prototype of Async-from-Sync Iterator objects ( 27.1.5 )
+
+%AsyncFunction%
+
+The constructor of async function objects ( 27.10.1 )
+
+%AsyncGeneratorFunction%
+
+The constructor of async generator function objects ( 27.7.1 )
+
+%AsyncGeneratorPrototype%
+
+The prototype of async generator objects ( 27.9 )
+
+%AsyncIteratorPrototype%
+
+An object that all standard built-in async iterator objects indirectly inherit from
+
+%Atomics%
+
+"Atomics"
+
+The Atomics object ( 25.4 )
+
+%BigInt%
+
+"BigInt"
+
+The BigInt constructor ( 21.2.1 )
+
+%BigInt64Array%
+
+"BigInt64Array"
+
+The BigInt64Array constructor ( 23.2 )
+
+%BigUint64Array%
+
+"BigUint64Array"
+
+The BigUint64Array constructor ( 23.2 )
+
+%Boolean%
+
+"Boolean"
+
+The Boolean constructor ( 20.3.1 )
+
+%DataView%
+
+"DataView"
+
+The DataView constructor ( 25.3.2 )
+
+%Date%
+
+"Date"
+
+The Date constructor ( 21.4.2 )
+
+%decodeURI%
+
+"decodeURI"
+
+The decodeURI function ( 19.2.6.1 )
+
+%decodeURIComponent%
+
+"decodeURIComponent"
+
+The decodeURIComponent function ( 19.2.6.2 )
+
+%DisposableStack%
+
+"DisposableStack"
+
+The DisposableStack constructor ( 27.3.1 )
+
+%encodeURI%
+
+"encodeURI"
+
+The encodeURI function ( 19.2.6.3 )
+
+%encodeURIComponent%
+
+"encodeURIComponent"
+
+The encodeURIComponent function ( 19.2.6.4 )
+
+%Error%
+
+"Error"
+
+The Error constructor ( 20.5.1 )
+
+%eval%
+
+"eval"
+
+The eval function ( 19.2.1 )
+
+%EvalError%
+
+"EvalError"
+
+The EvalError constructor ( 20.5.5.1 )
+
+%FinalizationRegistry%
+
+"FinalizationRegistry"
+
+The FinalizationRegistry constructor ( 26.2.1 )
+
+%Float16Array%
+
+"Float16Array"
+
+The Float16Array constructor ( 23.2 )
+
+%Float32Array%
+
+"Float32Array"
+
+The Float32Array constructor ( 23.2 )
+
+%Float64Array%
+
+"Float64Array"
+
+The Float64Array constructor ( 23.2 )
+
+%ForInIteratorPrototype%
+
+The prototype of For-In Iterator objects ( 14.7.5.10 )
+
+%Function%
+
+"Function"
+
+The Function constructor ( 20.2.1 )
+
+%GeneratorFunction%
+
+The constructor of generator function objects ( 27.6.1 )
+
+%GeneratorPrototype%
+
+The prototype of generator objects ( 27.8 )
+
+%Int8Array%
+
+"Int8Array"
+
+The Int8Array constructor ( 23.2 )
+
+%Int16Array%
+
+"Int16Array"
+
+The Int16Array constructor ( 23.2 )
+
+%Int32Array%
+
+"Int32Array"
+
+The Int32Array constructor ( 23.2 )
+
+%isFinite%
+
+"isFinite"
+
+The isFinite function ( 19.2.2 )
+
+%isNaN%
+
+"isNaN"
+
+The isNaN function ( 19.2.3 )
+
+%Iterator%
+
+"Iterator"
+
+The Iterator constructor ( 27.1.3.1 )
+
+%IteratorHelperPrototype%
+
+The prototype of Iterator Helper objects ( 27.1.2.1 )
+
+%JSON%
+
+"JSON"
+
+The JSON object ( 25.5 )
+
+%Map%
+
+"Map"
+
+The Map constructor ( 24.1.1 )
+
+%MapIteratorPrototype%
+
+The prototype of Map Iterator objects ( 24.1.5 )
+
+%Math%
+
+"Math"
+
+The Math object ( 21.3 )
+
+%Number%
+
+"Number"
+
+The Number constructor ( 21.1.1 )
+
+%Object%
+
+"Object"
+
+The Object constructor ( 20.1.1 )
+
+%parseFloat%
+
+"parseFloat"
+
+The parseFloat function ( 19.2.4 )
+
+%parseInt%
+
+"parseInt"
+
+The parseInt function ( 19.2.5 )
+
+%Promise%
+
+"Promise"
+
+The Promise constructor ( 27.5.3 )
+
+%Proxy%
+
+"Proxy"
+
+The Proxy constructor ( 28.2.1 )
+
+%RangeError%
+
+"RangeError"
+
+The RangeError constructor ( 20.5.5.2 )
+
+%ReferenceError%
+
+"ReferenceError"
+
+The ReferenceError constructor ( 20.5.5.3 )
+
+%Reflect%
+
+"Reflect"
+
+The Reflect object ( 28.1 )
+
+%RegExp%
+
+"RegExp"
+
+The RegExp constructor ( 22.2.4 )
+
+%RegExpStringIteratorPrototype%
+
+The prototype of RegExp String Iterator objects ( 22.2.9 )
+
+%Set%
+
+"Set"
+
+The Set constructor ( 24.2.2 )
+
+%SetIteratorPrototype%
+
+The prototype of Set Iterator objects ( 24.2.6 )
+
+%SharedArrayBuffer%
+
+"SharedArrayBuffer"
+
+The SharedArrayBuffer constructor ( 25.2.3 )
+
+%String%
+
+"String"
+
+The String constructor ( 22.1.1 )
+
+%StringIteratorPrototype%
+
+The prototype of String Iterator objects ( 22.1.5 )
+
+%SuppressedError%
+
+"SuppressedError"
+
+The SuppressedError constructor ( 20.5.8.1 )
+
+%Symbol%
+
+"Symbol"
+
+The Symbol constructor ( 20.4.1 )
+
+%SyntaxError%
+
+"SyntaxError"
+
+The SyntaxError constructor ( 20.5.5.4 )
+
+%ThrowTypeError%
+
+A function object that unconditionally throws a new instance of %TypeError%
+
+%TypedArray%
+
+The super class of all typed Array constructors ( 23.2.1 )
+
+%TypeError%
+
+"TypeError"
+
+The TypeError constructor ( 20.5.5.5 )
+
+%Uint8Array%
+
+"Uint8Array"
+
+The Uint8Array constructor ( 23.2 )
+
+%Uint8ClampedArray%
+
+"Uint8ClampedArray"
+
+The Uint8ClampedArray constructor ( 23.2 )
+
+%Uint16Array%
+
+"Uint16Array"
+
+The Uint16Array constructor ( 23.2 )
+
+%Uint32Array%
+
+"Uint32Array"
+
+The Uint32Array constructor ( 23.2 )
+
+%URIError%
+
+"URIError"
+
+The URIError constructor ( 20.5.5.6 )
+
+%WeakMap%
+
+"WeakMap"
+
+The WeakMap constructor ( 24.3.1 )
+
+%WeakRef%
+
+"WeakRef"
+
+The WeakRef constructor ( 26.1.1 )
+
+%WeakSet%
+
+"WeakSet"
+
+The WeakSet constructor ( 24.4.1 )
+
+%WrapForValidIteratorPrototype%
+
+The prototype of wrapped iterator objects returned by Iterator.from ( 27.1.3.2.2.1 )
+
+Note
+Additional entries in Table 103 .

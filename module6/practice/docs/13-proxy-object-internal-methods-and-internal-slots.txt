@@ -1,0 +1,527 @@
+# 10.5 Proxy Object Internal Methods and Internal Slots
+# джерело: https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-proxy-object-internal-methods-and-internal-slots
+# отримано: 2026-08-25
+
+10.5 Proxy Object Internal Methods and Internal Slots
+
+A Proxy object is an exotic object whose essential internal methods are partially implemented using ECMAScript code. Every Proxy object has an internal slot called [[ProxyHandler]] . The value of [[ProxyHandler]] is an object, called the proxy's handler object , or null . Methods (see Table 30 ) of a handler object may be used to augment the implementation for one or more of the Proxy object's internal methods. Every Proxy object also has an internal slot called [[ProxyTarget]] whose value is either an object or null . This object is called the proxy's target object .
+
+An object is a Proxy exotic object if its essential internal methods (including [[Call]] and [[Construct]] , if applicable) use the definitions in this section. These internal methods are installed in ProxyCreate .
+
+Table 30: Proxy Handler Methods
+
+Internal Method
+
+Handler Method
+
+[[GetPrototypeOf]]
+
+getPrototypeOf
+
+[[SetPrototypeOf]]
+
+setPrototypeOf
+
+[[IsExtensible]]
+
+isExtensible
+
+[[PreventExtensions]]
+
+preventExtensions
+
+[[GetOwnProperty]]
+
+getOwnPropertyDescriptor
+
+[[DefineOwnProperty]]
+
+defineProperty
+
+[[HasProperty]]
+
+has
+
+[[Get]]
+
+get
+
+[[Set]]
+
+set
+
+[[Delete]]
+
+deleteProperty
+
+[[OwnPropertyKeys]]
+
+ownKeys
+
+[[Call]]
+
+apply
+
+[[Construct]]
+
+construct
+
+When a handler method is called to provide the implementation of a Proxy object internal method, the handler method is passed the proxy's target object as a parameter. A proxy's handler object does not necessarily have a method corresponding to every essential internal method. Invoking an internal method on the proxy results in the invocation of the corresponding internal method on the proxy's target object if the handler object does not have a method corresponding to the internal trap.
+
+The [[ProxyHandler]] and [[ProxyTarget]] internal slots of a Proxy object are always initialized when the object is created and typically may not be modified. Some Proxy objects are created in a manner that permits them to be subsequently revoked . When a proxy is revoked, its [[ProxyHandler]] and [[ProxyTarget]] internal slots are set to null causing subsequent invocations of internal methods on that Proxy object to throw a TypeError exception.
+
+Because Proxy objects permit the implementation of internal methods to be provided by arbitrary ECMAScript code, it is possible to define a Proxy object whose handler methods violates the invariants defined in 6.1.7.3 . Some of the internal method invariants defined in 6.1.7.3 are essential integrity invariants. These invariants are explicitly enforced by the Proxy object internal methods specified in this section. An ECMAScript implementation must be robust in the presence of all possible invariant violations.
+
+In the following algorithm descriptions, assume obj is an ECMAScript Proxy object, propertyKey is a property key value, value is any ECMAScript language value and propertyDesc is a Property Descriptor record.
+
+10.5.1 [[GetPrototypeOf]] ( )
+
+The [[GetPrototypeOf]] internal method of a Proxy exotic object obj takes no arguments and returns either a normal completion containing either an Object or null , or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "getPrototypeOf" ).
+- If trap is undefined , then - Return ? target . [[GetPrototypeOf]] () .
+
+- Let handlerProto be ? Call ( trap , handler , « target »).
+- If handlerProto is not an Object and handlerProto is not null , throw a TypeError exception.
+- Let extensibleTarget be ? IsExtensible ( target ).
+- If extensibleTarget is true , return handlerProto .
+- Let targetProto be ? target . [[GetPrototypeOf]] () .
+- If SameValue ( handlerProto , targetProto ) is false , throw a TypeError exception.
+- Return handlerProto .
+
+Note
+[[GetPrototypeOf]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[GetPrototypeOf]] must be either an Object or null .
+
+-
+If the target object is not extensible, [[GetPrototypeOf]] applied to the Proxy object must return the same value as [[GetPrototypeOf]] applied to the Proxy object's target object.
+
+10.5.2 [[SetPrototypeOf]] ( proto )
+
+The [[SetPrototypeOf]] internal method of a Proxy exotic object obj takes argument proto (an Object or null ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "setPrototypeOf" ).
+- If trap is undefined , then - Return ? target . [[SetPrototypeOf]] ( proto ) .
+
+- Let boolTrapResult be ToBoolean (? Call ( trap , handler , « target , proto »)).
+- If boolTrapResult is false , return false .
+- Let extensibleTarget be ? IsExtensible ( target ).
+- If extensibleTarget is true , return true .
+- Let targetProto be ? target . [[GetPrototypeOf]] () .
+- If SameValue ( proto , targetProto ) is false , throw a TypeError exception.
+- Return true .
+
+Note
+[[SetPrototypeOf]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[SetPrototypeOf]] is a Boolean value.
+
+-
+If the target object is not extensible, the argument value must be the same as the result of [[GetPrototypeOf]] applied to target object.
+
+10.5.3 [[IsExtensible]] ( )
+
+The [[IsExtensible]] internal method of a Proxy exotic object obj takes no arguments and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "isExtensible" ).
+- If trap is undefined , then - Return ? IsExtensible ( target ).
+
+- Let boolTrapResult be ToBoolean (? Call ( trap , handler , « target »)).
+- Let targetResult be ? IsExtensible ( target ).
+- If boolTrapResult is not targetResult , throw a TypeError exception.
+- Return boolTrapResult .
+
+Note
+[[IsExtensible]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[IsExtensible]] is a Boolean value.
+
+-
+[[IsExtensible]] applied to the Proxy object must return the same value as [[IsExtensible]] applied to the Proxy object's target object with the same argument.
+
+10.5.4 [[PreventExtensions]] ( )
+
+The [[PreventExtensions]] internal method of a Proxy exotic object obj takes no arguments and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "preventExtensions" ).
+- If trap is undefined , then - Return ? target . [[PreventExtensions]] () .
+
+- Let boolTrapResult be ToBoolean (? Call ( trap , handler , « target »)).
+- If boolTrapResult is true , then - Let extensibleTarget be ? IsExtensible ( target ).
+- If extensibleTarget is true , throw a TypeError exception.
+
+- Return boolTrapResult .
+
+Note
+[[PreventExtensions]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[PreventExtensions]] is a Boolean value.
+
+-
+[[PreventExtensions]] applied to the Proxy object only returns true if [[IsExtensible]] applied to the Proxy object's target object is false .
+
+10.5.5 [[GetOwnProperty]] ( propertyKey )
+
+The [[GetOwnProperty]] internal method of a Proxy exotic object obj takes argument propertyKey (a property key ) and returns either a normal completion containing either a Property Descriptor or undefined , or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "getOwnPropertyDescriptor" ).
+- If trap is undefined , then - Return ? target . [[GetOwnProperty]] ( propertyKey ) .
+
+- Let trapResultObj be ? Call ( trap , handler , « target , propertyKey »).
+- If trapResultObj is not an Object and trapResultObj is not undefined , throw a TypeError exception.
+- Let targetDesc be ? target . [[GetOwnProperty]] ( propertyKey ) .
+- If trapResultObj is undefined , then - If targetDesc is undefined , return undefined .
+- If targetDesc . [[Configurable]] is false , throw a TypeError exception.
+- Let extensibleTarget be ? IsExtensible ( target ).
+- If extensibleTarget is false , throw a TypeError exception.
+- Return undefined .
+
+- Let extensibleTarget be ? IsExtensible ( target ).
+- Let resultDesc be ? ToPropertyDescriptor ( trapResultObj ).
+- Perform CompletePropertyDescriptor ( resultDesc ).
+- Let valid be IsCompatiblePropertyDescriptor ( extensibleTarget , resultDesc , targetDesc ).
+- If valid is false , throw a TypeError exception.
+- If resultDesc . [[Configurable]] is false , then - If targetDesc is undefined or targetDesc . [[Configurable]] is true , then - Throw a TypeError exception.
+
+- If resultDesc has a [[Writable]] field and resultDesc . [[Writable]] is false , then - Assert : targetDesc has a [[Writable]] field.
+- If targetDesc . [[Writable]] is true , throw a TypeError exception.
+
+- Return resultDesc .
+
+Note
+[[GetOwnProperty]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[GetOwnProperty]] must be either a Property Descriptor or undefined .
+
+-
+A property cannot be reported as non-existent, if it exists as a non-configurable own property of the target object.
+
+-
+A property cannot be reported as non-existent, if it exists as an own property of a non-extensible target object.
+
+-
+A property cannot be reported as existent, if it does not exist as an own property of the target object and the target object is not extensible.
+
+-
+A property cannot be reported as non-configurable, unless it exists as a non-configurable own property of the target object.
+
+-
+A property cannot be reported as both non-configurable and non-writable, unless it exists as a non-configurable, non-writable own property of the target object.
+
+10.5.6 [[DefineOwnProperty]] ( propertyKey , propertyDesc )
+
+The [[DefineOwnProperty]] internal method of a Proxy exotic object obj takes arguments propertyKey (a property key ) and propertyDesc (a Property Descriptor ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "defineProperty" ).
+- If trap is undefined , then - Return ? target . [[DefineOwnProperty]] ( propertyKey , propertyDesc ) .
+
+- Let propertyDescObj be FromPropertyDescriptor ( propertyDesc ).
+- Let boolTrapResult be ToBoolean (? Call ( trap , handler , « target , propertyKey , propertyDescObj »)).
+- If boolTrapResult is false , return false .
+- Let targetDesc be ? target . [[GetOwnProperty]] ( propertyKey ) .
+- Let extensibleTarget be ? IsExtensible ( target ).
+- If propertyDesc has a [[Configurable]] field and propertyDesc . [[Configurable]] is false , then - Let settingConfigFalse be true .
+
+- Else, - Let settingConfigFalse be false .
+
+- If targetDesc is undefined , then - If extensibleTarget is false , throw a TypeError exception.
+- If settingConfigFalse is true , throw a TypeError exception.
+
+- Else, - If IsCompatiblePropertyDescriptor ( extensibleTarget , propertyDesc , targetDesc ) is false , throw a TypeError exception.
+- If settingConfigFalse is true and targetDesc . [[Configurable]] is true , throw a TypeError exception.
+- If IsDataDescriptor ( targetDesc ) is true , targetDesc . [[Configurable]] is false , and targetDesc . [[Writable]] is true , then - If propertyDesc has a [[Writable]] field and propertyDesc . [[Writable]] is false , throw a TypeError exception.
+
+- Return true .
+
+Note
+[[DefineOwnProperty]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[DefineOwnProperty]] is a Boolean value.
+
+-
+A property cannot be added, if the target object is not extensible.
+
+-
+A property cannot be non-configurable, unless there exists a corresponding non-configurable own property of the target object.
+
+-
+A non-configurable property cannot be non-writable, unless there exists a corresponding non-configurable, non-writable own property of the target object.
+
+-
+If a property has a corresponding target object property then applying the Property Descriptor of the property to the target object using [[DefineOwnProperty]] will not throw an exception.
+
+10.5.7 [[HasProperty]] ( propertyKey )
+
+The [[HasProperty]] internal method of a Proxy exotic object obj takes argument propertyKey (a property key ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "has" ).
+- If trap is undefined , then - Return ? target . [[HasProperty]] ( propertyKey ) .
+
+- Let boolTrapResult be ToBoolean (? Call ( trap , handler , « target , propertyKey »)).
+- If boolTrapResult is false , then - Let targetDesc be ? target . [[GetOwnProperty]] ( propertyKey ) .
+- If targetDesc is not undefined , then - If targetDesc . [[Configurable]] is false , throw a TypeError exception.
+- Let extensibleTarget be ? IsExtensible ( target ).
+- If extensibleTarget is false , throw a TypeError exception.
+
+- Return boolTrapResult .
+
+Note
+[[HasProperty]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[HasProperty]] is a Boolean value.
+
+-
+A property cannot be reported as non-existent, if it exists as a non-configurable own property of the target object.
+
+-
+A property cannot be reported as non-existent, if it exists as an own property of the target object and the target object is not extensible.
+
+10.5.8 [[Get]] ( propertyKey , receiver )
+
+The [[Get]] internal method of a Proxy exotic object obj takes arguments propertyKey (a property key ) and receiver (an ECMAScript language value ) and returns either a normal completion containing an ECMAScript language value or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "get" ).
+- If trap is undefined , then - Return ? target . [[Get]] ( propertyKey , receiver ) .
+
+- Let trapResult be ? Call ( trap , handler , « target , propertyKey , receiver »).
+- Let targetDesc be ? target . [[GetOwnProperty]] ( propertyKey ) .
+- If targetDesc is not undefined and targetDesc . [[Configurable]] is false , then - If IsDataDescriptor ( targetDesc ) is true and targetDesc . [[Writable]] is false , then - If SameValue ( trapResult , targetDesc . [[Value]] ) is false , throw a TypeError exception.
+
+- If IsAccessorDescriptor ( targetDesc ) is true and targetDesc . [[Getter]] is undefined , then - If trapResult is not undefined , throw a TypeError exception.
+
+- Return trapResult .
+
+Note
+[[Get]] for Proxy objects enforces the following invariants:
+
+-
+The value reported for a property must be the same as the value of the corresponding target object property if the target object property is a non-writable, non-configurable own data property .
+
+-
+The value reported for a property must be undefined if the corresponding target object property is a non-configurable own accessor property that has undefined as its [[Getter]] attribute.
+
+10.5.9 [[Set]] ( propertyKey , value , receiver )
+
+The [[Set]] internal method of a Proxy exotic object obj takes arguments propertyKey (a property key ), value (an ECMAScript language value ), and receiver (an ECMAScript language value ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "set" ).
+- If trap is undefined , then - Return ? target . [[Set]] ( propertyKey , value , receiver ) .
+
+- Let boolTrapResult be ToBoolean (? Call ( trap , handler , « target , propertyKey , value , receiver »)).
+- If boolTrapResult is false , return false .
+- Let targetDesc be ? target . [[GetOwnProperty]] ( propertyKey ) .
+- If targetDesc is not undefined and targetDesc . [[Configurable]] is false , then - If IsDataDescriptor ( targetDesc ) is true and targetDesc . [[Writable]] is false , then - If SameValue ( value , targetDesc . [[Value]] ) is false , throw a TypeError exception.
+
+- If IsAccessorDescriptor ( targetDesc ) is true , then - If targetDesc . [[Setter]] is undefined , throw a TypeError exception.
+
+- Return true .
+
+Note
+[[Set]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[Set]] is a Boolean value.
+
+-
+Cannot change the value of a property to be different from the value of the corresponding target object property if the corresponding target object property is a non-writable, non-configurable own data property .
+
+-
+Cannot set the value of a property if the corresponding target object property is a non-configurable own accessor property that has undefined as its [[Setter]] attribute.
+
+10.5.10 [[Delete]] ( propertyKey )
+
+The [[Delete]] internal method of a Proxy exotic object obj takes argument propertyKey (a property key ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "deleteProperty" ).
+- If trap is undefined , then - Return ? target . [[Delete]] ( propertyKey ) .
+
+- Let boolTrapResult be ToBoolean (? Call ( trap , handler , « target , propertyKey »)).
+- If boolTrapResult is false , return false .
+- Let targetDesc be ? target . [[GetOwnProperty]] ( propertyKey ) .
+- If targetDesc is undefined , return true .
+- If targetDesc . [[Configurable]] is false , throw a TypeError exception.
+- Let extensibleTarget be ? IsExtensible ( target ).
+- If extensibleTarget is false , throw a TypeError exception.
+- Return true .
+
+Note
+[[Delete]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[Delete]] is a Boolean value.
+
+-
+A property cannot be reported as deleted, if it exists as a non-configurable own property of the target object.
+
+-
+A property cannot be reported as deleted, if it exists as an own property of the target object and the target object is non-extensible.
+
+10.5.11 [[OwnPropertyKeys]] ( )
+
+The [[OwnPropertyKeys]] internal method of a Proxy exotic object obj takes no arguments and returns either a normal completion containing a List of property keys or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "ownKeys" ).
+- If trap is undefined , then - Return ? target . [[OwnPropertyKeys]] () .
+
+- Let trapResultArray be ? Call ( trap , handler , « target »).
+- Let trapResult be ? CreateListFromArrayLike ( trapResultArray , property-key ).
+- If trapResult contains any duplicate entries, throw a TypeError exception.
+- Let extensibleTarget be ? IsExtensible ( target ).
+- Let targetKeys be ? target . [[OwnPropertyKeys]] () .
+- Assert : targetKeys is a List of property keys .
+- Assert : targetKeys contains no duplicate entries.
+- Let targetConfigurableKeys be a new empty List .
+- Let targetNonconfigurableKeys be a new empty List .
+- For each element key of targetKeys , do - Let propertyDesc be ? target . [[GetOwnProperty]] ( key ) .
+- If propertyDesc is not undefined and propertyDesc . [[Configurable]] is false , then - Append key to targetNonconfigurableKeys .
+
+- Else, - Append key to targetConfigurableKeys .
+
+- If extensibleTarget is true and targetNonconfigurableKeys is empty, then - Return trapResult .
+
+- Let uncheckedResultKeys be a List whose elements are the elements of trapResult .
+- For each element key of targetNonconfigurableKeys , do - If uncheckedResultKeys does not contain key , throw a TypeError exception.
+- Remove key from uncheckedResultKeys .
+
+- If extensibleTarget is true , return trapResult .
+- For each element key of targetConfigurableKeys , do - If uncheckedResultKeys does not contain key , throw a TypeError exception.
+- Remove key from uncheckedResultKeys .
+
+- If uncheckedResultKeys is not empty, throw a TypeError exception.
+- Return trapResult .
+
+Note
+[[OwnPropertyKeys]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[OwnPropertyKeys]] is a List .
+
+-
+The returned List contains no duplicate entries.
+
+-
+Each element of the returned List is a property key .
+
+-
+The result List must contain the keys of all non-configurable own properties of the target object.
+
+-
+If the target object is not extensible, then the result List must contain all the keys of the own properties of the target object and no other values.
+
+10.5.12 [[Call]] ( thisArg , argList )
+
+The [[Call]] internal method of a Proxy exotic object obj takes arguments thisArg (an ECMAScript language value ) and argList (a List of ECMAScript language values ) and returns either a normal completion containing an ECMAScript language value or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "apply" ).
+- If trap is undefined , then - Return ? Call ( target , thisArg , argList ).
+
+- Let argArray be CreateArrayFromList ( argList ).
+- Return ? Call ( trap , handler , « target , thisArg , argArray »).
+
+Note
+A Proxy exotic object only has a [[Call]] internal method if the initial value of its [[ProxyTarget]] internal slot is an object that has a [[Call]] internal method.
+
+10.5.13 [[Construct]] ( argList , newTarget )
+
+The [[Construct]] internal method of a Proxy exotic object obj takes arguments argList (a List of ECMAScript language values ) and newTarget (a constructor ) and returns either a normal completion containing an Object or a throw completion . It performs the following steps when called:
+
+- Perform ? ValidateNonRevokedProxy ( obj ).
+- Let target be obj . [[ProxyTarget]] .
+- Assert : IsConstructor ( target ) is true .
+- Let handler be obj . [[ProxyHandler]] .
+- Assert : handler is an Object .
+- Let trap be ? GetMethod ( handler , "construct" ).
+- If trap is undefined , then - Return ? Construct ( target , argList , newTarget ).
+
+- Let argArray be CreateArrayFromList ( argList ).
+- Let newObj be ? Call ( trap , handler , « target , argArray , newTarget »).
+- If newObj is not an Object , throw a TypeError exception.
+- Return newObj .
+
+Note 1
+A Proxy exotic object only has a [[Construct]] internal method if the initial value of its [[ProxyTarget]] internal slot is an object that has a [[Construct]] internal method.
+
+Note 2
+[[Construct]] for Proxy objects enforces the following invariants:
+
+-
+The result of [[Construct]] must be an Object.
+
+10.5.14 ValidateNonRevokedProxy ( proxy )
+
+The abstract operation ValidateNonRevokedProxy takes argument proxy (a Proxy exotic object ) and returns either a normal completion containing unused or a throw completion . It throws a TypeError exception if proxy has been revoked. It performs the following steps when called:
+
+- If proxy . [[ProxyTarget]] is null , throw a TypeError exception.
+- Assert : proxy . [[ProxyHandler]] is not null .
+- Return unused .
+
+10.5.15 ProxyCreate ( target , handler )
+
+The abstract operation ProxyCreate takes arguments target (an ECMAScript language value ) and handler (an ECMAScript language value ) and returns either a normal completion containing a Proxy exotic object or a throw completion . It is used to specify the creation of new Proxy objects. It performs the following steps when called:
+
+- If target is not an Object , throw a TypeError exception.
+- If handler is not an Object , throw a TypeError exception.
+- Let proxy be MakeBasicObject (« [[ProxyHandler]] , [[ProxyTarget]] »).
+- Set proxy 's essential internal methods, except for [[Call]] and [[Construct]] , to the definitions specified in 10.5 .
+- If IsCallable ( target ) is true , then - Set proxy . [[Call]] as specified in 10.5.12 .
+- If IsConstructor ( target ) is true , then - Set proxy . [[Construct]] as specified in 10.5.13 .
+
+- Set proxy . [[ProxyTarget]] to target .
+- Set proxy . [[ProxyHandler]] to handler .
+- Return proxy .

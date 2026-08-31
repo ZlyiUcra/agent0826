@@ -1,0 +1,312 @@
+{
+  "set": "docs-suite",
+  "written": "2026-08-29",
+  "documents": [
+    {
+      "file": "402-01-scope.txt",
+      "id": "scope",
+      "title": "1 Scope",
+      "url": "https://tc39.es/ecma402/#scope",
+      "fetched": "2026-08-26",
+      "chars": 225,
+      "sha256": "7923bbf5046e302df35d3e20f329e6df65e434cac582c8865c74bb286b473bf5"
+    },
+    {
+      "file": "402-02-conformance.txt",
+      "id": "conformance",
+      "title": "2 Conformance",
+      "url": "https://tc39.es/ecma402/#conformance",
+      "fetched": "2026-08-26",
+      "chars": 2395,
+      "sha256": "8fdcddeb77abddaa15a0c9842c38ec3c0707522b7fb3c0b80941923166101eb4"
+    },
+    {
+      "file": "402-03-normative-references.txt",
+      "id": "normative-references",
+      "title": "3 Normative References",
+      "url": "https://tc39.es/ecma402/#normative-references",
+      "fetched": "2026-08-26",
+      "chars": 1521,
+      "sha256": "78df83ff8c2b2d5264f86583dda5787c85562f0a3aa6ad59cf9859428da7dcb6"
+    },
+    {
+      "file": "402-04-overview.txt",
+      "id": "overview",
+      "title": "4 Overview",
+      "url": "https://tc39.es/ecma402/#overview",
+      "fetched": "2026-08-26",
+      "chars": 8703,
+      "sha256": "8e794fa12399bc932da8de174e95cd7b260606afe3fedff085d4d39325fe8a2b"
+    },
+    {
+      "file": "402-05-conventions.txt",
+      "id": "conventions",
+      "title": "5 Notational Conventions",
+      "url": "https://tc39.es/ecma402/#conventions",
+      "fetched": "2026-08-26",
+      "chars": 2107,
+      "sha256": "986f7b9eba93fab445a573ff1f5d91e4c9a4cfde3b5e1efd1aa0e1d7b85c1bc9"
+    },
+    {
+      "file": "402-06-locales-currencies-tz.txt",
+      "id": "locales-currencies-tz",
+      "title": "6 Identification of Locales, Currencies, Time Zones, Measurement Units, Numbering Systems, Collations, and Calendars",
+      "url": "https://tc39.es/ecma402/#locales-currencies-tz",
+      "fetched": "2026-08-26",
+      "chars": 31353,
+      "sha256": "2aea65bf864263f27548ce64d4ce50268e1434ed8179c7e08760a2b3547f7251"
+    },
+    {
+      "file": "402-07-requirements.txt",
+      "id": "requirements",
+      "title": "7 Requirements for Standard Built-in ECMAScript Objects",
+      "url": "https://tc39.es/ecma402/#requirements",
+      "fetched": "2026-08-26",
+      "chars": 320,
+      "sha256": "6c3c3bd1be115916fb8a3c09dbce38abb920a3d72e3c745a19aa2acdb00a560e"
+    },
+    {
+      "file": "402-08-intl-object.txt",
+      "id": "intl-object",
+      "title": "8 The Intl Object",
+      "url": "https://tc39.es/ecma402/#intl-object",
+      "fetched": "2026-08-26",
+      "chars": 2734,
+      "sha256": "1ad7fc75a26d1701f9068c6f1af95bde7f9eaec67b2a11f64eada1a1b6aa914d"
+    },
+    {
+      "file": "402-09-locale-and-parameter-negotiation.txt",
+      "id": "locale-and-parameter-negotiation",
+      "title": "9 Locale and Parameter Negotiation",
+      "url": "https://tc39.es/ecma402/#locale-and-parameter-negotiation",
+      "fetched": "2026-08-26",
+      "chars": 27065,
+      "sha256": "25bed66140fb1234b8c21cfcb10d6a7fa9ba44185d7248fd693c31ff0236cb6c"
+    },
+    {
+      "file": "402-10-collator-objects.txt",
+      "id": "collator-objects",
+      "title": "10 Collator Objects",
+      "url": "https://tc39.es/ecma402/#collator-objects",
+      "fetched": "2026-08-26",
+      "chars": 15274,
+      "sha256": "92b30793073e59e2c535803c9d11a15d17bf187bd481cf52c897015dbe5a926f"
+    },
+    {
+      "file": "402-11-datetimeformat-objects.txt",
+      "id": "datetimeformat-objects",
+      "title": "11 DateTimeFormat Objects",
+      "url": "https://tc39.es/ecma402/#datetimeformat-objects",
+      "fetched": "2026-08-26",
+      "chars": 57707,
+      "sha256": "af3cb3fbcdaf044e6896a8943c3a989700955e72db89ae2529f9e481b46821eb"
+    },
+    {
+      "file": "402-12-intl-displaynames-objects.txt",
+      "id": "intl-displaynames-objects",
+      "title": "12 DisplayNames Objects",
+      "url": "https://tc39.es/ecma402/#intl-displaynames-objects",
+      "fetched": "2026-08-26",
+      "chars": 12664,
+      "sha256": "deca7dffb6a1d7a75821c9597f0acb3d64b9181f36ee7a29542b76c90089f480"
+    },
+    {
+      "file": "402-13-durationformat-objects.txt",
+      "id": "durationformat-objects",
+      "title": "13 DurationFormat Objects",
+      "url": "https://tc39.es/ecma402/#durationformat-objects",
+      "fetched": "2026-08-26",
+      "chars": 39437,
+      "sha256": "a963f0bd0a2cabbdf91b1bdfd0ed32051214022d4f1146adf120d4234ee5c83c"
+    },
+    {
+      "file": "402-14-listformat-objects.txt",
+      "id": "listformat-objects",
+      "title": "14 ListFormat Objects",
+      "url": "https://tc39.es/ecma402/#listformat-objects",
+      "fetched": "2026-08-26",
+      "chars": 12757,
+      "sha256": "83802507a172f7b27c1dd7977b41abe5a861b123c39042226cfaea90df0b4eda"
+    },
+    {
+      "file": "402-15-locale-objects.txt",
+      "id": "locale-objects",
+      "title": "15 Locale Objects",
+      "url": "https://tc39.es/ecma402/#locale-objects",
+      "fetched": "2026-08-26",
+      "chars": 35677,
+      "sha256": "c8ce30dbafa834a35662355937516b7aa784b7eac355bd4cf2f21e48ba98f8c0"
+    },
+    {
+      "file": "402-16-numberformat-objects.txt",
+      "id": "numberformat-objects",
+      "title": "16 NumberFormat Objects",
+      "url": "https://tc39.es/ecma402/#numberformat-objects",
+      "fetched": "2026-08-26",
+      "chars": 70689,
+      "sha256": "d0b789e4f75dfef24752478a1d8da2708293b79db21c0804000ff5fa241bdcc5"
+    },
+    {
+      "file": "402-17-pluralrules-objects.txt",
+      "id": "pluralrules-objects",
+      "title": "17 PluralRules Objects",
+      "url": "https://tc39.es/ecma402/#pluralrules-objects",
+      "fetched": "2026-08-26",
+      "chars": 14015,
+      "sha256": "448e4603bc4be31c40c2ff3039ef86c3541c9fde8498ef83b3d9f2fae1242e15"
+    },
+    {
+      "file": "402-18-relativetimeformat-objects.txt",
+      "id": "relativetimeformat-objects",
+      "title": "18 RelativeTimeFormat Objects",
+      "url": "https://tc39.es/ecma402/#relativetimeformat-objects",
+      "fetched": "2026-08-26",
+      "chars": 14382,
+      "sha256": "c7f377d0a25dbea8899af9a4aa5c4c9851e678e03a2700021dbac9b677eae4e5"
+    },
+    {
+      "file": "402-19-segmenter-objects.txt",
+      "id": "segmenter-objects",
+      "title": "19 Segmenter Objects",
+      "url": "https://tc39.es/ecma402/#segmenter-objects",
+      "fetched": "2026-08-26",
+      "chars": 14746,
+      "sha256": "df1c752d8fd76cfc8ff0414df96e16443d7f022137a72cba7efca0862fe5323e"
+    },
+    {
+      "file": "402-20-locale-sensitive-functions.txt",
+      "id": "locale-sensitive-functions",
+      "title": "20 Locale Sensitive Functions of the ECMAScript Language Specification",
+      "url": "https://tc39.es/ecma402/#locale-sensitive-functions",
+      "fetched": "2026-08-29",
+      "chars": 10686,
+      "sha256": "dc64bbe75a0f4d365f9233a232dc6aff33f63411471095cead1c721e0d0b8f12"
+    },
+    {
+      "file": "402-A-implementation-dependent-behaviour.txt",
+      "id": "implementation-dependent-behaviour",
+      "title": "Annex A (informative) Implementation Dependent Behaviour",
+      "url": "https://tc39.es/ecma402/#annex-implementation-dependent-behaviour",
+      "fetched": "2026-08-26",
+      "chars": 4137,
+      "sha256": "e35c57ba41c73478765172119a501886054372871ba23f39c0bd995f71ae7fcf"
+    },
+    {
+      "file": "402-B-incompatibilities.txt",
+      "id": "incompatibilities",
+      "title": "Annex B (informative) Additions and Changes That Introduce Incompatibilities with Prior Editions",
+      "url": "https://tc39.es/ecma402/#annex-incompatibilities",
+      "fetched": "2026-08-26",
+      "chars": 1629,
+      "sha256": "5334836199e4c39617c8cc4bff2583d75d7af22c7a5230cc638104932e7707c2"
+    },
+    {
+      "file": "404-json.txt",
+      "id": "404-json",
+      "title": "ECMA-404 The JSON Data Interchange Syntax, 2nd edition",
+      "url": "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf",
+      "fetched": "2026-08-26",
+      "chars": 11773,
+      "sha256": "ccfe3f7991ec8e87b7293f342a292f3c31fd7bb077a9c4608b11209deaa2e485"
+    },
+    {
+      "file": "414-suite.txt",
+      "id": "414-suite",
+      "title": "ECMA-414 ECMAScript Specification Suite, 3rd edition",
+      "url": "https://ecma-international.org/wp-content/uploads/ECMA-414_3rd_edition_december_2017.pdf",
+      "fetched": "2026-08-26",
+      "chars": 4088,
+      "sha256": "39f258ecff5bc8577c485e6e83d3903eed426c212a941b8e3e41f4f052c774d2"
+    },
+    {
+      "file": "rfc4647-matching-of-language-tags.txt",
+      "id": "rfc4647-matching-of-language-tags",
+      "title": "RFC 4647 Matching of Language Tags",
+      "url": "https://www.rfc-editor.org/rfc/rfc4647.txt",
+      "fetched": "2026-08-26",
+      "chars": 36843,
+      "sha256": "484b3fb8f4004bbeb4d5a2a9fc3c6199cb5e33b5fbfca0c85ec7c02648a87235"
+    },
+    {
+      "file": "uax29-text-segmentation.txt",
+      "id": "uax29-text-segmentation",
+      "title": "Unicode Standard Annex #29: Unicode Text Segmentation",
+      "url": "https://www.unicode.org/reports/tr29/",
+      "fetched": "2026-08-26",
+      "chars": 81335,
+      "sha256": "bde7ce806cd646acf94e4cceb7b10c0b80dd2a4ef1a4e93ddd62e0fcded2b908"
+    },
+    {
+      "file": "uts10-collation-algorithm.txt",
+      "id": "uts10-collation-algorithm",
+      "title": "Unicode Technical Standard #10: Unicode Collation Algorithm",
+      "url": "https://www.unicode.org/reports/tr10/",
+      "fetched": "2026-08-26",
+      "chars": 189843,
+      "sha256": "2da9db19ad10f1feea3f20e619fb554334e6baf13f3c0b4e033a8314a6ba9bcc"
+    },
+    {
+      "file": "uts35-1-core.txt",
+      "id": "uts35-1-core",
+      "title": "Unicode Technical Standard #35: LDML Part 1: Core",
+      "url": "https://www.unicode.org/reports/tr35/",
+      "fetched": "2026-08-26",
+      "chars": 258552,
+      "sha256": "e4a2dd184122140f62c7e055fe092e09d0709be8e6ddee1d81da4d9240bed686"
+    },
+    {
+      "file": "uts35-2-general.txt",
+      "id": "uts35-2-general",
+      "title": "Unicode Technical Standard #35: LDML Part 2: General",
+      "url": "https://www.unicode.org/reports/tr35/tr35-general.html",
+      "fetched": "2026-08-26",
+      "chars": 174798,
+      "sha256": "125f8dc1670523a3bbcc57fa12a8d3bb05ad63384f19e592b27764139705cb72"
+    },
+    {
+      "file": "uts35-3-numbers.txt",
+      "id": "uts35-3-numbers",
+      "title": "Unicode Technical Standard #35: LDML Part 3: Numbers",
+      "url": "https://www.unicode.org/reports/tr35/tr35-numbers.html",
+      "fetched": "2026-08-26",
+      "chars": 131739,
+      "sha256": "f8c59ef46ac620bd6b49f8726af73d7429578707f723fe636b3ad125feb4e16c"
+    },
+    {
+      "file": "uts35-4-dates.txt",
+      "id": "uts35-4-dates",
+      "title": "Unicode Technical Standard #35: LDML Part 4: Dates",
+      "url": "https://www.unicode.org/reports/tr35/tr35-dates.html",
+      "fetched": "2026-08-26",
+      "chars": 161724,
+      "sha256": "5a7c3015c0b4c59eff3d3549dd84362e8e592f7bb508955f54f38d4a6f853e8f"
+    },
+    {
+      "file": "uts35-5-collation.txt",
+      "id": "uts35-5-collation",
+      "title": "Unicode Technical Standard #35: LDML Part 5: Collation",
+      "url": "https://www.unicode.org/reports/tr35/tr35-collation.html",
+      "fetched": "2026-08-26",
+      "chars": 81528,
+      "sha256": "b7bfb4563094210832b5366ce59297f85cbd2fba9d4f614c3ed97bbaf8e6ef55"
+    },
+    {
+      "file": "uts35-6-supplemental.txt",
+      "id": "uts35-6-supplemental",
+      "title": "Unicode Technical Standard #35: LDML Part 6: Supplemental",
+      "url": "https://www.unicode.org/reports/tr35/tr35-info.html",
+      "fetched": "2026-08-29",
+      "chars": 81780,
+      "sha256": "e5fa6984949f3001aeb702e8605bcb3d12f19036386a753f3b01fa4900600e00"
+    },
+    {
+      "file": "uts35-7-keyboards.txt",
+      "id": "uts35-7-keyboards",
+      "title": "Unicode Technical Standard #35: LDML Part 7: Keyboards",
+      "url": "https://www.unicode.org/reports/tr35/tr35-keyboards.html",
+      "fetched": "2026-08-29",
+      "chars": 117633,
+      "sha256": "374d7cdea6124614fd16c630f8d650dea0dd51b87956ed584ff2fe688a47caca"
+    }
+  ]
+}

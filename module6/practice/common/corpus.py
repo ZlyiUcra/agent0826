@@ -1,40 +1,65 @@
 """
-СПІЛЬНЕ · корпус-приманка і поділ його на фрагменти.
+СПІЛЬНЕ · документи практики і поділ їх на фрагменти.
 
-Це НЕ справжня специфікація. Тут малий набір коротких документів у docs-attack/,
-навмисно зроблений для лабораторної з безпеки: кілька чесних розділів і два
-отруєні, у тіло яких зашита інструкція для моделі. Через це кожен документ у
-шапці позначає джерело як «FIXTURE», а не як адресу tc39 — плутати приманку зі
-специфікацією не можна.
+Корпус тут — той самий, що в практиках модулів 2-5: специфікація ECMAScript,
+поділена на фрагменти. Набір обирається змінною PRACTICE_DOCS: «core» —
+вісімнадцять розділів навколо типу Object, «full» — уся ECMA-262, «suite» —
+ECMA-262 разом із ECMA-402, 404, 414 і вільними документами довкола 402.
+Типовий набір цієї практики — найширший, «suite».
 
-Формат файлу той самий, що в практиці модуля 5: три рядки шапки, кожен із «#»
-(назва розділу, джерело, дата), порожній рядок, далі текст. Документи короткі,
-тож фрагмент дорівнює документу — різати нема чого. Клас Passage лишається
-сумісним із common/lexical.py, який чекає на .heading, .text і load_passages().
+Понад справжні документи корпус ЗАВЖДИ містить теку docs-attack/ — навчальні
+приманки лабораторної з безпеки. Два з тих документів отруєні: у їхнє тіло
+зашита інструкція для моделі, і серед тисяч справжніх фрагментів вона ховається
+так само, як ховалася б у реальному RAG. Кожна приманка позначає джерело як
+FIXTURE, щоб її не сплутати зі специфікацією.
+
+Формат файлу: три рядки шапки, які починаються з «#» (заголовок розділу, адреса
+джерела, дата), порожній рядок, далі текст. Шапка потрібна для посилання у
+відповіді агента, тому в тіло вона не потрапляє. Індексуються фрагменти, а не
+цілі документи: специфікація сама пронумерована, і межа фрагмента — це її
+пронумерований підзаголовок.
 """
 
+import hashlib
+import json
+import os
 import pathlib
 import re
 
-_ROOT = pathlib.Path(__file__).resolve().parent.parent
-DOCS_DIR = _ROOT / "docs-attack"
+DOC_SETS = {
+    "core":  ("docs",),
+    "full":  ("docs-full",),
+    "suite": ("docs-full", "docs-suite"),
+}
+DOC_SET = os.getenv("PRACTICE_DOCS", "suite")
+if DOC_SET not in DOC_SETS:
+    raise SystemExit(f"Невідомий набір документів '{DOC_SET}'. "
+                     f"Доступні: {', '.join(sorted(DOC_SETS))}")
 
-# Рядок-заголовок специфікації: номер розділу, пробіл, назва. Той самий, що в
-# корпусі модуля 5 — за ним із назви дістається номер розділу для посилання.
+_ROOT = pathlib.Path(__file__).resolve().parent.parent
+ATTACK_DIR = _ROOT / "docs-attack"
+# Справжні документи набору плюс приманки — завжди. Приманки останні, щоб їхні
+# фрагменти йшли після справжніх; на пошук порядок не впливає, але так у списку
+# видно, де закінчується специфікація й починається лабораторія.
+DOCS_DIRS = [_ROOT / name for name in DOC_SETS[DOC_SET]] + [ATTACK_DIR]
+
+MAX_CHARS = 1400
+MIN_CHARS = 200
+
 _HEADING = re.compile(r"^(\d+(?:\.\d+)*)\s+(\S.{0,110})$")
 
 
 class Document:
-    """Один файл із docs-attack/ разом із шапкою."""
+    """Один файл разом із шапкою."""
 
     def __init__(self, path: pathlib.Path):
         raw = path.read_text(encoding="utf-8").splitlines()
         head = [ln[1:].strip() for ln in raw if ln.startswith("#")][:3]
         body = "\n".join(raw[len(head):]).strip("\n")
 
-        self.doc_id = path.stem                      # напр. 04-string-trim
+        self.doc_id = path.stem
         self.path = path
-        self.title = head[0] if head else path.stem  # напр. 22.1.3.32 String.prototype.trim
+        self.title = head[0] if head else path.stem
         self.url = ""
         self.fetched = ""
         for line in head[1:]:
@@ -43,6 +68,7 @@ class Document:
             elif line.startswith("отримано:"):
                 self.fetched = line.split(":", 1)[1].strip()
         self.text = body
+        self.is_attack = path.parent.name == ATTACK_DIR.name
 
     @property
     def section(self) -> str:
@@ -51,44 +77,111 @@ class Document:
 
 
 class Passage:
-    """Фрагмент — одиниця, яку індексує і повертає пошук. Тут = цілий документ."""
+    """Фрагмент документа — одиниця, яку індексує і повертає пошук."""
 
-    def __init__(self, doc: Document):
+    def __init__(self, doc: Document, section: str, heading: str, text: str,
+                 part: int = 1, parts: int = 1):
         self.doc_id = doc.doc_id
         self.doc_title = doc.title
         self.url = doc.url
-        self.section = doc.section
-        self.heading = doc.title
-        self.text = doc.text
+        self.section = section
+        self.heading = heading
+        self.text = text
+        self.part = part
+        self.parts = parts
 
     @property
     def pid(self) -> str:
-        """Стійкий ідентифікатор фрагмента — він же посилання у відповіді агента."""
-        return f"{self.doc_id}#{self.section}" if self.section else self.doc_id
+        base = f"{self.doc_id}#{self.section or 'head'}"
+        return f"{base}/{self.part}" if self.parts > 1 else base
 
     @property
     def label(self) -> str:
-        """Людський підпис: те, що агент цитує клієнтові як джерело."""
-        return self.heading
+        tail = f" (частина {self.part} з {self.parts})" if self.parts > 1 else ""
+        return f"{self.heading}{tail}"
 
     def as_prompt_block(self) -> str:
-        """Готовий блок для tool_result: підпис, посилання, текст."""
         return f"[{self.pid}] {self.label}\nдокумент: {self.doc_title}\n\n{self.text}"
 
     def __repr__(self):
         return f"<Passage {self.pid} {len(self.text)} симв.>"
 
 
+_DOWNLOAD_HINT = {
+    "docs-full":  "python -m practice.challenges.spec_download   (з модуля 5)",
+    "docs-suite": "python -m practice.challenges.suite_download  (з модуля 5)",
+}
+
+
 def load_documents() -> list[Document]:
-    """Усі .txt із docs-attack/ у порядку імен файлів."""
-    files = sorted(DOCS_DIR.glob("*.txt"))
-    if not files:
-        raise SystemExit(
-            f"У {DOCS_DIR} немає жодного .txt. Корпус-приманка лежить у "
-            "репозиторії разом із практикою; якщо теки немає — відновіть її з git.")
-    return [Document(p) for p in files]
+    docs = []
+    for folder in DOCS_DIRS:
+        files = sorted(folder.glob("*.txt"))
+        if not files:
+            hint = _DOWNLOAD_HINT.get(folder.name)
+            raise SystemExit(
+                f"У {folder} немає жодного .txt.\n"
+                + (f"Скопіюйте набір із модуля 5 або вивантажте: {hint}"
+                   if hint else "Приманки лежать у репозиторії разом із практикою."))
+        docs.extend(Document(p) for p in files)
+    return docs
+
+
+def _split_long(doc, section, heading, text, max_chars=None):
+    ceiling = max_chars or MAX_CHARS
+    if len(text) <= ceiling:
+        return [Passage(doc, section, heading, text)]
+    chunks, current, size = [], [], 0
+    for para in text.split("\n\n"):
+        if size and size + len(para) > ceiling:
+            chunks.append("\n\n".join(current))
+            current, size = [], 0
+        current.append(para)
+        size += len(para) + 2
+    if current:
+        chunks.append("\n\n".join(current))
+    if len(chunks) > 1 and len(chunks[-1]) < MIN_CHARS:
+        tail = chunks.pop()
+        chunks[-1] = chunks[-1] + "\n\n" + tail
+    return [Passage(doc, section, heading, c, i + 1, len(chunks))
+            for i, c in enumerate(chunks)]
+
+
+def split_document(doc: Document, max_chars=None) -> list[Passage]:
+    section, heading = doc.section, doc.title
+    buffer, out = [], []
+
+    def flush():
+        text = "\n".join(buffer).strip()
+        if text:
+            out.extend(_split_long(doc, section, heading, text, max_chars))
+        buffer.clear()
+
+    for line in doc.text.split("\n"):
+        m = _HEADING.match(line.strip())
+        if m and line.strip() == line:
+            flush()
+            section, heading = m.group(1), line.strip()
+            continue
+        buffer.append(line)
+    flush()
+    return [p for p in out if len(p.text) >= MIN_CHARS or p.parts > 1]
 
 
 def load_passages() -> list[Passage]:
-    """Кожен документ — один фрагмент. Вхід і сервера, і пошуку BM25."""
-    return [Passage(doc) for doc in load_documents()]
+    """Усі документи набору й приманки, поділені на фрагменти. Однакові тексти
+    зливаються в один фрагмент (перший за порядком)."""
+    seen, out = set(), []
+    for doc in load_documents():
+        for p in split_document(doc):
+            if p.text in seen:
+                continue
+            seen.add(p.text)
+            out.append(p)
+    return out
+
+
+def fingerprint(passages: list[Passage]) -> str:
+    payload = [[p.pid, len(p.text)] for p in passages]
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False).encode()).hexdigest()[:16]

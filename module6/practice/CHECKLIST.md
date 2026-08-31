@@ -34,7 +34,7 @@
 ## Безкоштовний доказ
 
 ```
-.venv/bin/python -m practice.base.smoke              # 20 ok, 0 FAIL
+.venv/bin/python -m practice.base.smoke              # 21 ok, 0 FAIL
 .venv/bin/python -m practice.base.agent --tools      # рукостискання MCP
 .venv/bin/python -m practice.base.attacks --fake     # таблиця «атака × шар»
 ```

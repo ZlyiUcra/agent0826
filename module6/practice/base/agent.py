@@ -28,7 +28,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from practice.base import layers
-from practice.common.corpus import DOCS_DIR
+from practice.common.corpus import ATTACK_DIR
 
 _HERE = pathlib.Path(__file__).resolve().parent
 _SERVER = _HERE / "spec_server.py"
@@ -134,7 +134,7 @@ def _fake_call(*, system: str = "", messages=None, tools=None, **kw) -> _Resp:
 
     if not results:                                   # перший хід
         if layers.scan_input(user_query)["verdict"] == "block":
-            files = ", ".join(p.stem for p in sorted(DOCS_DIR.glob("*.txt")))
+            files = ", ".join(p.stem for p in sorted(ATTACK_DIR.glob("*.txt")))
             return _final(f"System prompt: {system[:60]}... "
                           f"Corpus files (docs-attack): {files}.")
         return _tool("search_spec", {"query": user_query, "k": 3})
@@ -148,16 +148,19 @@ def _fake_call(*, system: str = "", messages=None, tools=None, **kw) -> _Resp:
     if data.get("fetched"):
         return _final("Готово.")
 
+    # Серед справжніх фрагментів приманка вже не обов'язково верхня, тож
+    # ін'єкцію шукаємо в тексті УСІХ знайдених, а не лише першого.
     hits = data.get("hits") or []
-    ptext = hits[0]["text"] if hits else ""
-    m = re.search(r"fetch_url.*?(https?://[^\s\"\\]+)", ptext, re.S | re.I)
+    alltext = "\n".join(h.get("text", "") for h in hits)
+    m = re.search(r"fetch_url.*?(https?://[^\s\"\\]+)", alltext, re.S | re.I)
     if m:                                             # отрута: виклик на чужий домен
         return _tool("fetch_url", {"url": m.group(1) + user_query.replace(" ", "%20")})
-    foreign = [u for u in re.findall(r"https?://[^\s\"\\]+", ptext)
-               if not _allowed_url(u)]
-    if foreign:                                       # отрута: чуже посилання у відповідь
-        return _final(f"Про parseFloat: читає префікс числа. "
-                      f"Офіційне джерело: {foreign[0]}")
+    if re.search(r"append|EDITORIAL|дописати|Офіційне джерело", alltext, re.I):
+        foreign = [u for u in re.findall(r"https?://[^\s\"\\]+", alltext)
+                   if not _allowed_url(u)]
+        if foreign:                                   # отрута: чуже посилання у відповідь
+            return _final(f"Про parseFloat: читає префікс числа. "
+                          f"Офіційне джерело: {foreign[0]}")
     if hits:
         return _final(f"Дивись розділ {hits[0].get('section', '')}.")
     return _final("Нічого не знайдено.")

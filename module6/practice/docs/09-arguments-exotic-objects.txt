@@ -1,0 +1,168 @@
+# 10.4.4 Arguments Exotic Objects
+# джерело: https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-arguments-exotic-objects
+# отримано: 2026-08-25
+
+10.4.4 Arguments Exotic Objects
+
+Most ECMAScript functions make an arguments object available to their code. Depending upon the characteristics of the function definition, its arguments object is either an ordinary object or an arguments exotic object . An arguments exotic object is an exotic object whose array index properties map to the formal parameters bindings of an invocation of its associated ECMAScript function.
+
+An object is an arguments exotic object if its internal methods use the following implementations, with the ones not specified here using those found in 10.1 . These methods are installed in CreateMappedArgumentsObject .
+
+Note 1
+While CreateUnmappedArgumentsObject is grouped into this clause, it creates an ordinary object , not an arguments exotic object .
+
+Arguments exotic objects have the same internal slots as ordinary objects . They also have a [[ParameterMap]] internal slot. Ordinary arguments objects also have a [[ParameterMap]] internal slot whose value is always undefined . For ordinary argument objects the [[ParameterMap]] internal slot is only used by Object.prototype.toString ( 20.1.3.6 ) to identify them as such.
+
+Note 2
+The integer-indexed data properties of an arguments exotic object whose numeric name values are less than the number of formal parameters of the corresponding function object initially share their values with the corresponding argument bindings in the function's execution context . This means that changing the property changes the corresponding value of the argument binding and vice-versa. This correspondence is broken if such a property is deleted and then redefined or if the property is changed into an accessor property . If the arguments object is an ordinary object , the values of its properties are simply a copy of the arguments passed to the function and there is no dynamic linkage between the property values and the formal parameter values.
+
+Note 3
+The ParameterMap object and its property values are used as a device for specifying the arguments object correspondence to argument bindings. The ParameterMap object and the objects that are the values of its properties are not directly observable from ECMAScript code. An ECMAScript implementation does not need to actually create or use such objects to implement the specified semantics.
+
+Note 4
+Ordinary arguments objects define a non-configurable accessor property named "callee" which throws a TypeError exception on access. The "callee" property has a more specific meaning for arguments exotic objects , which are created only for some class of non-strict functions . The definition of this property in the ordinary variant exists to ensure that it is not defined in any other manner by conforming ECMAScript implementations.
+
+Note 5
+ECMAScript implementations of arguments exotic objects have historically contained an accessor property named "caller" . Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped the requirement for a throwing "caller" accessor.
+
+10.4.4.1 [[GetOwnProperty]] ( propertyKey )
+
+The [[GetOwnProperty]] internal method of an arguments exotic object args takes argument propertyKey (a property key ) and returns a normal completion containing either a Property Descriptor or undefined . It performs the following steps when called:
+
+- Let propertyDesc be OrdinaryGetOwnProperty ( args , propertyKey ).
+- If propertyDesc is undefined , return undefined .
+- Let map be args . [[ParameterMap]] .
+- Let isMapped be ! HasOwnProperty ( map , propertyKey ).
+- If isMapped is true , then - Set propertyDesc . [[Value]] to ! Get ( map , propertyKey ).
+
+- Return propertyDesc .
+
+10.4.4.2 [[DefineOwnProperty]] ( propertyKey , propertyDesc )
+
+The [[DefineOwnProperty]] internal method of an arguments exotic object args takes arguments propertyKey (a property key ) and propertyDesc (a Property Descriptor ) and returns a normal completion containing a Boolean. It performs the following steps when called:
+
+- Let map be args . [[ParameterMap]] .
+- Let isMapped be ! HasOwnProperty ( map , propertyKey ).
+- Let newArgDesc be propertyDesc .
+- If isMapped is true and IsDataDescriptor ( propertyDesc ) is true , then - If propertyDesc does not have a [[Value]] field, propertyDesc has a [[Writable]] field, and propertyDesc . [[Writable]] is false , then - Set newArgDesc to a copy of propertyDesc .
+- Set newArgDesc . [[Value]] to ! Get ( map , propertyKey ).
+
+- Let allowed be ! OrdinaryDefineOwnProperty ( args , propertyKey , newArgDesc ).
+- If allowed is false , return false .
+- If isMapped is true , then - If IsAccessorDescriptor ( propertyDesc ) is true , then - Perform ! map . [[Delete]] ( propertyKey ).
+
+- Else, - If propertyDesc has a [[Value]] field, then - Assert : The following Set will succeed, since formal parameters mapped by arguments objects are always writable.
+- Perform ! Set ( map , propertyKey , propertyDesc . [[Value]] , false ).
+
+- If propertyDesc has a [[Writable]] field and propertyDesc . [[Writable]] is false , then - Perform ! map . [[Delete]] ( propertyKey ).
+
+- Return true .
+
+10.4.4.3 [[Get]] ( propertyKey , receiver )
+
+The [[Get]] internal method of an arguments exotic object args takes arguments propertyKey (a property key ) and receiver (an ECMAScript language value ) and returns either a normal completion containing an ECMAScript language value or a throw completion . It performs the following steps when called:
+
+- Let map be args . [[ParameterMap]] .
+- Let isMapped be ! HasOwnProperty ( map , propertyKey ).
+- If isMapped is false , return ? OrdinaryGet ( args , propertyKey , receiver ).
+- Assert : map contains a formal parameter mapping for propertyKey .
+- Return ! Get ( map , propertyKey ).
+
+10.4.4.4 [[Set]] ( propertyKey , value , receiver )
+
+The [[Set]] internal method of an arguments exotic object args takes arguments propertyKey (a property key ), value (an ECMAScript language value ), and receiver (an ECMAScript language value ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- If SameValue ( args , receiver ) is false , then - Let isMapped be false .
+
+- Else, - Let map be args . [[ParameterMap]] .
+- Let isMapped be ! HasOwnProperty ( map , propertyKey ).
+
+- If isMapped is true , then - Assert : The following Set will succeed, since formal parameters mapped by arguments objects are always writable.
+- Perform ! Set ( map , propertyKey , value , false ).
+
+- Return ? OrdinarySet ( args , propertyKey , value , receiver ).
+
+10.4.4.5 [[Delete]] ( propertyKey )
+
+The [[Delete]] internal method of an arguments exotic object args takes argument propertyKey (a property key ) and returns either a normal completion containing a Boolean or a throw completion . It performs the following steps when called:
+
+- Let map be args . [[ParameterMap]] .
+- Let isMapped be ! HasOwnProperty ( map , propertyKey ).
+- Let result be ? OrdinaryDelete ( args , propertyKey ).
+- If result is true and isMapped is true , then - Perform ! map . [[Delete]] ( propertyKey ).
+
+- Return result .
+
+10.4.4.6 CreateUnmappedArgumentsObject ( argList )
+
+The abstract operation CreateUnmappedArgumentsObject takes argument argList (a List of ECMAScript language values ) and returns an ordinary object . It performs the following steps when called:
+
+- Let length be the number of elements in argList .
+- Let obj be OrdinaryObjectCreate ( %Object.prototype% , « [[ParameterMap]] »).
+- Set obj . [[ParameterMap]] to undefined .
+- Perform ! DefinePropertyOrThrow ( obj , "length" , PropertyDescriptor { [[Value]] : 𝔽 ( length ), [[Writable]] : true , [[Enumerable]] : false , [[Configurable]] : true }).
+- Let index be 0.
+- Repeat, while index < length , - Let value be argList [ index ].
+- Perform ! CreateDataPropertyOrThrow ( obj , ! ToString ( 𝔽 ( index )), value ).
+- Set index to index + 1.
+
+- Perform ! DefinePropertyOrThrow ( obj , %Symbol.iterator% , PropertyDescriptor { [[Value]] : %Array.prototype.values%, [[Writable]] : true , [[Enumerable]] : false , [[Configurable]] : true }).
+- Perform ! DefinePropertyOrThrow ( obj , "callee" , PropertyDescriptor { [[Getter]] : %ThrowTypeError% , [[Setter]] : %ThrowTypeError% , [[Enumerable]] : false , [[Configurable]] : false }).
+- Return obj .
+
+10.4.4.7 CreateMappedArgumentsObject ( func , formals , argList , envRecord )
+
+The abstract operation CreateMappedArgumentsObject takes arguments func (an ECMAScript function object ), formals (a Parse Node ), argList (a List of ECMAScript language values ), and envRecord (an Environment Record ) and returns an arguments exotic object . It performs the following steps when called:
+
+- Assert : formals does not contain a rest parameter, any binding patterns, or any initializers. It may contain duplicate identifiers.
+- Let length be the number of elements in argList .
+- Let obj be MakeBasicObject (« [[Prototype]] , [[Extensible]] , [[ParameterMap]] »).
+- Set obj . [[GetOwnProperty]] as specified in 10.4.4.1 .
+- Set obj . [[DefineOwnProperty]] as specified in 10.4.4.2 .
+- Set obj . [[Get]] as specified in 10.4.4.3 .
+- Set obj . [[Set]] as specified in 10.4.4.4 .
+- Set obj . [[Delete]] as specified in 10.4.4.5 .
+- Set obj . [[Prototype]] to %Object.prototype% .
+- Let map be OrdinaryObjectCreate ( null ).
+- Set obj . [[ParameterMap]] to map .
+- Let paramNames be the BoundNames of formals .
+- Let paramCount be the number of elements in paramNames .
+- Let index be 0.
+- Repeat, while index < length , - Let value be argList [ index ].
+- Perform ! CreateDataPropertyOrThrow ( obj , ! ToString ( 𝔽 ( index )), value ).
+- Set index to index + 1.
+
+- Perform ! DefinePropertyOrThrow ( obj , "length" , PropertyDescriptor { [[Value]] : 𝔽 ( length ), [[Writable]] : true , [[Enumerable]] : false , [[Configurable]] : true }).
+- Let mappedNames be a new empty List .
+- Set index to paramCount - 1.
+- Repeat, while index ≥ 0, - Let name be paramNames [ index ].
+- If mappedNames does not contain name , then - Append name to mappedNames .
+- If index < length , then - Let getter be MakeArgGetter ( name , envRecord ).
+- Let setter be MakeArgSetter ( name , envRecord ).
+- Perform ! map . [[DefineOwnProperty]] (! ToString ( 𝔽 ( index )), PropertyDescriptor { [[Setter]] : setter , [[Getter]] : getter , [[Enumerable]] : false , [[Configurable]] : true }).
+
+- Set index to index - 1.
+
+- Perform ! DefinePropertyOrThrow ( obj , %Symbol.iterator% , PropertyDescriptor { [[Value]] : %Array.prototype.values%, [[Writable]] : true , [[Enumerable]] : false , [[Configurable]] : true }).
+- Perform ! DefinePropertyOrThrow ( obj , "callee" , PropertyDescriptor { [[Value]] : func , [[Writable]] : true , [[Enumerable]] : false , [[Configurable]] : true }).
+- Return obj .
+
+10.4.4.7.1 MakeArgGetter ( name , envRecord )
+
+The abstract operation MakeArgGetter takes arguments name (a String) and envRecord (an Environment Record ) and returns a function object . It creates a built-in function object that when executed returns the value bound for name in envRecord . It performs the following steps when called:
+
+- Let getterClosure be a new Abstract Closure with no parameters that captures name and envRecord and performs the following steps when called: - Return NormalCompletion (! envRecord . GetBindingValue ( name , false )).
+
+- Let getter be CreateBuiltinFunction ( getterClosure , 0, "" , « »).
+- NOTE : getter is never directly accessible to ECMAScript code.
+- Return getter .
+
+10.4.4.7.2 MakeArgSetter ( name , envRecord )
+
+The abstract operation MakeArgSetter takes arguments name (a String) and envRecord (an Environment Record ) and returns a function object . It creates a built-in function object that when executed sets the value bound for name in envRecord . It performs the following steps when called:
+
+- Let setterClosure be a new Abstract Closure with parameters ( value ) that captures name and envRecord and performs the following steps when called: - Return NormalCompletion (! envRecord . SetMutableBinding ( name , value , false )).
+
+- Let setter be CreateBuiltinFunction ( setterClosure , 1, "" , « »).
+- NOTE : setter is never directly accessible to ECMAScript code.
+- Return setter .
