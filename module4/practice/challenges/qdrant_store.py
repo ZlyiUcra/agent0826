@@ -64,6 +64,7 @@ Qdrant має офіційний пакет `qdrant-client`, і в ньому н
 дашборд — на http://localhost:6333/dashboard.
 """
 
+import hashlib
 import json
 import os
 import pathlib
@@ -71,6 +72,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 
 from practice.common.corpus import DOC_SET, Passage, load_passages
 from practice.common.vectors import MODEL_KEY, MODEL_NAME, THRESHOLD, VectorIndex
@@ -163,34 +165,110 @@ def _doc_no(doc_id: str) -> int:
     return int(head) if head.isdigit() else 0
 
 
-def _point(i: int, p: Passage, vector) -> dict:
-    """Фрагмент як точка Qdrant. Номер точки — місце фрагмента у списку:
-    порядок документів і поділ на фрагменти сталі, тож номер теж сталий."""
+# Стійкий номер точки й сума її тексту — те саме, що в практиках модулів 5 і 6.
+# Номер зроблено з pid фрагмента (uuid5), а не з його позиції у списку: правка
+# документа в середині набору більше не збиває номери решти, і оновлюється лише
+# той фрагмент, чия сума змінилася. Пошук фрагмент і так шукав за payload.pid, а
+# не за номером точки, тож на видачу ця зміна не впливає.
+_NAMESPACE = uuid.UUID("6d0d1f6e-2b8a-4a1e-9f3c-6ec0ffee6006")
+
+
+def _stable_id(pid: str) -> str:
+    """Стійкий номер точки з ідентифікатора фрагмента. Не залежить від позиції."""
+    return str(uuid.uuid5(_NAMESPACE, pid))
+
+
+def _digest(text: str) -> str:
+    """Сума тексту фрагмента: за нею відрізняємо змінений від незмінного."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _fetch_digests(ids: list, collection: str) -> dict:
+    """Суми, що вже лежать у названих точках. Порожньо для тих, кого немає."""
+    out: dict = {}
+    for start in range(0, len(ids), BATCH):
+        res = _request("POST", f"/collections/{collection}/points",
+                       {"ids": ids[start:start + BATCH],
+                        "with_payload": ["digest"]})["result"]
+        for r in res:
+            out[r["id"]] = (r.get("payload") or {}).get("digest")
+    return out
+
+
+def _all_ids(collection: str) -> set:
+    """Номери всіх точок колекції. Лише читання (scroll), нічого не видаляє."""
+    ids: set = set()
+    offset = None
+    while True:
+        body = {"limit": 1024, "with_payload": False, "with_vector": False}
+        if offset is not None:
+            body["offset"] = offset
+        res = _request("POST", f"/collections/{collection}/points/scroll",
+                       body)["result"]
+        for point in res["points"]:
+            ids.add(point["id"])
+        offset = res.get("next_page_offset")
+        if offset is None:
+            return ids
+
+
+def _plan(collection: str, passages: list):
+    """Розкладає фрагменти, не заливаючи нічого: todo — нові й змінені (список
+    (позиція, фрагмент, сума)), unchanged — скільки вже актуальних, orphans —
+    номери точок, яких немає серед поточних фрагментів, recognized — чи впізнано
+    в колекції бодай один фрагмент цієї схеми номерів.
+
+    Перерваний Ctrl+C запуск не втрачає залитого: уже записані точки мають
+    правильну суму, тож наступний план бачить їх у unchanged і дозаливає лише
+    todo — тобто видно, з якого місця продовжувати."""
+    want = [(i, p, _stable_id(p.pid), _digest(p.text))
+            for i, p in enumerate(passages)]
+    want_ids = {sid for _, _, sid, _ in want}
+    stored = _fetch_digests([sid for _, _, sid, _ in want], collection)
+    todo, unchanged = [], 0
+    for i, p, sid, digest in want:
+        if stored.get(sid) == digest:
+            unchanged += 1
+        else:
+            todo.append((i, p, digest))
+    orphans = [sid for sid in _all_ids(collection) if sid not in want_ids]
+    return todo, unchanged, orphans, bool(stored)
+
+
+def _point(p: Passage, vector, digest: str) -> dict:
+    """Фрагмент як точка Qdrant. Номер — стійкий (зі стабільного pid), поряд із
+    текстом лежить сума, за якою заливання впізнає зміну."""
     return {
-        "id": i,
+        "id": _stable_id(p.pid),
         "vector": [float(x) for x in vector],
         # doc_no — номер документа числом («07-array-exotic-objects» → 7).
         # Саме по ньому звужується пошук, коли індекс просять не по всьому
         # набору, а по частині документів: у Qdrant це фільтр на боці сервера,
         # а не відсіювання вже знайденого.
-        "payload": {"pid": p.pid, "doc_id": p.doc_id, "doc_no": _doc_no(p.doc_id),
-                    "doc_title": p.doc_title, "section": p.section,
-                    "heading": p.heading, "label": p.label, "url": p.url,
-                    "part": p.part, "parts": p.parts, "text": p.text},
+        "payload": {"pid": p.pid, "digest": digest, "doc_id": p.doc_id,
+                    "doc_no": _doc_no(p.doc_id), "doc_title": p.doc_title,
+                    "section": p.section, "heading": p.heading, "label": p.label,
+                    "url": p.url, "part": p.part, "parts": p.parts,
+                    "text": p.text},
     }
 
 
-def _upsert(collection: str, passages: list, matrix, verbose: bool = True) -> int:
-    """Записує точки пачками. Наявні точки з тими самими номерами замінюються."""
+def _upsert(collection: str, todo: list, matrix, verbose: bool = True) -> int:
+    """Заливає точки пачками. `todo` — список (позиція, фрагмент, сума) з _plan:
+    рівно нові й змінені. Пачками, щоб перерваний запуск не втратив уже залите —
+    кожна пачка чекає підтвердження Qdrant (wait=true), тож у разі розриву
+    втрачається щонайбільше пачка в польоті, а не весь прогін; наступний запуск
+    за сумами продовжить із того місця, де спинився."""
     sent = 0
-    for start in range(0, len(passages), BATCH):
-        chunk = [_point(i, p, matrix[i])
-                 for i, p in enumerate(passages)][start:start + BATCH]
+    total = len(todo)
+    for start in range(0, total, BATCH):
+        chunk = [_point(p, matrix[i], digest)
+                 for i, p, digest in todo[start:start + BATCH]]
         _request("PUT", f"/collections/{collection}/points?wait=true",
                  {"points": chunk})
         sent += len(chunk)
         if verbose:
-            print(f"  залито:       {sent} з {len(passages)}")
+            print(f"  залито:       {sent} з {total}")
     return sent
 
 
@@ -204,7 +282,7 @@ def _ensure(collection: str, dim: int) -> None:
 
 
 def ingest(verbose: bool = True) -> dict:
-    """Заливає всі фрагменти документів у Qdrant. Вектори — з кеша .npy."""
+    """Заливає у Qdrant лише нові й змінені фрагменти. Вектори — з кеша .npy."""
     index = VectorIndex()
     dim = int(index.matrix.shape[1])
     if verbose:
@@ -216,18 +294,46 @@ def ingest(verbose: bool = True) -> dict:
         print(f"  колекція:     {COLLECTION} — "
               f"{'створена' if created else 'уже була, лишаю як є'}")
 
-    sent = _upsert(COLLECTION, index.passages, index.matrix, verbose)
+    have = collection_info()["points_count"]
+    todo, unchanged, orphans, recognized = _plan(COLLECTION, index.passages)
 
-    info = collection_info()
-    stored = info["points_count"]
+    # Точки в колекції є, але жодну не впізнано під нашою схемою номерів: це
+    # стара, позиційна схема з попередньої версії практики (або чужий корпус).
+    # Заливати поверх не можна — стійкі номери лягли б поряд зі старими, і пошук
+    # за pid діставав би той самий фрагмент двічі. Знести й залити наново
+    # вирішує людина.
+    if have and not recognized:
+        print(f"\n  У колекції {have} точок під старою схемою номерів (позиційною).\n"
+              f"  Долити поверх не можна — вийдуть дублі. Перехід на стійкі номери —\n"
+              f"  через одноразове знесення й заливання наново (видаляєте ви самі):\n"
+              f"    curl -X DELETE {QDRANT_URL}/collections/{COLLECTION}\n"
+              f"    python -m practice.challenges.qdrant_store")
+        return {"sent": 0, "stored": have, "dim": dim, "created": created,
+                "todo": 0, "unchanged": 0, "orphans": len(orphans),
+                "blocked": True}
+
     if verbose:
-        print(f"  у колекції:   {stored} точок")
-        if stored > len(index.passages):
-            print(f"  УВАГА: точок більше, ніж фрагментів у документах "
-                  f"({stored} проти {len(index.passages)}). Лишки з давнішого "
-                  f"заливання нічого не видаляють самі — приберіть їх руками, "
-                  f"якщо вони зайві.")
-    return {"sent": sent, "stored": stored, "dim": dim, "created": created}
+        print(f"  розклад:      нових/змінених {len(todo)}, "
+              f"без змін {unchanged}, зайвих {len(orphans)}")
+    sent = _upsert(COLLECTION, todo, index.matrix, verbose)
+
+    stored = collection_info()["points_count"]
+    if verbose:
+        if not todo:
+            print(f"  у колекції:   {stored} точок — усе вже актуальне, "
+                  f"заливати нічого")
+        else:
+            print(f"  у колекції:   {stored} точок")
+        if orphans:
+            print(f"  УВАГА: {len(orphans)} точок описують текст, якого в "
+                  f"документах уже\n         немає. Пошук їх не показує "
+                  f"(мапиться за pid); прибрати фізично\n         можна лише "
+                  f"знесенням колекції — робите це ви самі:\n"
+                  f"           curl -X DELETE {QDRANT_URL}/collections/"
+                  f"{COLLECTION}\n"
+                  f"           python -m practice.challenges.qdrant_store")
+    return {"sent": sent, "stored": stored, "dim": dim, "created": created,
+            "todo": len(todo), "unchanged": unchanged, "orphans": len(orphans)}
 
 
 class QdrantIndex:
@@ -568,9 +674,17 @@ def ingest_notes(verbose: bool = True) -> dict:
         print(f"  пропускаю: {why}")
         return {"sent": 0}
     _ensure(NOTES_COLLECTION, dim)
-    sent = _upsert(NOTES_COLLECTION, passages, index.matrix, verbose)
+    todo, unchanged, orphans, recognized = _plan(NOTES_COLLECTION, passages)
+    if orphans and not recognized:
+        print(f"  у {NOTES_COLLECTION} {len(orphans)} точок під старою схемою "
+              f"номерів — знесіть і залийте наново:\n"
+              f"    curl -X DELETE {QDRANT_URL}/collections/{NOTES_COLLECTION}\n"
+              f"    python -m practice.challenges.qdrant_store --notes")
+        return {"sent": 0}
+    sent = _upsert(NOTES_COLLECTION, todo, index.matrix, verbose)
     if verbose:
-        print(f"  залито {sent} фрагментів документації у {NOTES_COLLECTION}")
+        print(f"  залито {sent} нових/змінених фрагментів документації "
+              f"у {NOTES_COLLECTION} (без змін {unchanged})")
     return {"sent": sent}
 
 
