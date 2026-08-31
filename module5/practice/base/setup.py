@@ -50,9 +50,29 @@ from practice.common.mode import PATH as MODE_PATH, read as read_mode, write as 
 # для попередження людині — з нього рахується очікуваний час.
 SEC_PER_PASSAGE = 0.635
 
-YES = {"y", "yes"}
-NO = {"n", "no"}
-QUIT = {"q", "quit"}
+# Латиниця, те саме при ввімкненій українській розкладці, і самі слова. Літери
+# між розкладками не збігаються: «у» стоїть на клавіші «y» у фонетичній, «н» —
+# на «n» у ній же і водночас на «y» у ЙЦУКЕН. «н» читається як «ні», бо так
+# каже і слово, і фонетична розкладка, а помилка в цей бік нічого не встановлює.
+# «т» не приймається зовсім: у ЙЦУКЕН це клавіша «n», а в слові «так» — перша
+# літера, тобто два прочитання протилежні, і одне з них ставить контейнер.
+YES = {"y", "yes", "у", "так"}
+NO = {"n", "no", "н", "ні"}
+QUIT = {"q", "quit", "й", "я", "вихід", "вийти"}
+
+
+def _shown(answer: str) -> str:
+    """Відповідь у лапках, а для не-латиниці ще й коди символів.
+
+    Найчастіша причина невпізнаної відповіді — не помилка в літері, а розкладка:
+    кирилична «у» в терміналі виглядає точно як латинська «y», і без коду цього
+    не видно. Невидимі символи, що приїхали разом із вставленим рядком, так само
+    стають видимі.
+    """
+    if answer.isascii():
+        return f'"{answer}"'
+    codes = " ".join(f"U+{ord(ch):04X}" for ch in answer)
+    return f'"{answer}" ({codes})'
 
 
 def _ask() -> bool | None:
@@ -67,9 +87,10 @@ def _ask() -> bool | None:
 
     Текст самого питання англійською на прохання власника, і відповідь — літера,
     а не слово: це єдине місце практики, де людина відповідає машині, і воно має
-    читатися так само в будь-якому терміналі, без розкладки і без здогадів про
-    кодування. Велика «N» у [y/N/q] означає типову відповідь: порожній рядок —
-    це «n», тобто не встановлювати нічого.
+    читатися так само в будь-якому терміналі. Приймається і те, що дає та сама
+    клавіша при ввімкненій українській розкладці; перелік і його межі описані
+    коментарем біля YES, NO і QUIT. Велика «N» у [y/N/q] означає типову
+    відповідь: порожній рядок — це «n», тобто не встановлювати нічого.
     """
     from practice.common import embed, vectorstore
     from practice.common.corpus import DOC_SET, load_passages
@@ -137,8 +158,9 @@ same command with --vectors or --no-vectors.
             return False
         if answer in QUIT:
             return None
-        print("Unclear answer. Please enter one of the three letters above:\n"
-              "y to bring it up, n to stay with word search, q to quit.")
+        print(f"Unclear answer {_shown(answer)}. Please enter one of the three\n"
+              "letters above: y to bring it up, n to stay with word search,\n"
+              "q to quit.")
 
 
 def status() -> int:
@@ -433,7 +455,8 @@ def _offer_stop() -> None:
             return
         if answer in YES:
             break
-        print("Unclear answer. Enter y to stop the container, n to leave it running.")
+        print(f"Unclear answer {_shown(answer)}. Enter y to stop the container,\n"
+              "n to leave it running.")
 
     if vectorstore.stop():
         print(f"Контейнер {vectorstore.CONTAINER} зупинено. Дані лишилися в томі\n"
