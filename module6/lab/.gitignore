@@ -1,0 +1,5 @@
+.venv/
+egress.log
+.guardrailsrc
+__pycache__/
+.cache/
