@@ -33,14 +33,17 @@
 команду ще раз.
 
 Рахунок векторів для повного набору триває хвилини, тому він іде пачками і друкує
-поступ, а перервана робота не пропадає: наступний запуск дораховує з того місця,
-де зупинився попередній. `--vectors --refill` рахує все наново, поверх наявних
-точок; наявні точки при цьому не видаляються, а перезаписуються тими самими
-номерами.
+поступ. Номер точки зроблено зі стійкого ідентифікатора фрагмента, а не з його
+позиції у списку, і поряд із текстом лежить його сума: тому повторний запуск
+рахує лише ті фрагменти, що додалися чи змінилися, незмінні не чіпає, і перервана
+робота не пропадає. `--vectors --refill` рахує все наново, поверх наявних точок;
+наявні точки при цьому не видаляються, а перезаписуються тими самими номерами.
 """
 
+import hashlib
 import sys
 import time
+import uuid
 
 from practice.common.mode import PATH as MODE_PATH, read as read_mode, write as write_mode
 
@@ -95,21 +98,30 @@ def _ask() -> bool | None:
     from practice.common import embed, vectorstore
     from practice.common.corpus import DOC_SET, load_passages
 
-    n = len(load_passages())
+    passages = load_passages()
+    n = len(passages)
     have_docker = vectorstore.docker_available()
 
     # Скільки лишилося рахувати насправді. Попередження про сорок хвилин там, де
     # база вже залита і робота займе секунди, — не обережність, а неправда, і
-    # людина після одного такого перестає читати попередження взагалі.
-    done = vectorstore.count() if vectorstore.alive() else 0
-    left = max(0, n - done)
+    # людина після одного такого перестає читати попередження взагалі. Рахунок
+    # чесний: не «n мінус кількість точок» (стара колекція під іншою схемою
+    # номерів дала б нуль, хоч рахувати треба все), а рівно нові плюс змінені.
+    left, seen = n, False
+    if vectorstore.alive() and vectorstore.collection_info() is not None:
+        from practice.common.idmap import assign_ids
+
+        _, uid_of = assign_ids(passages)
+        new, changed, _, _ = _plan(passages, uid_of)
+        left, seen = len(new) + len(changed), True
     minutes = max(1, round(left * SEC_PER_PASSAGE / 60))
     if not left:
         cost = (f"Nothing to compute: all {n} are already in the database, so this\n"
                 f"        only records the decision.")
-    elif done:
-        cost = (f"Computes the {left} vectors missing from the database (out of\n"
-                f"        {n}): about {minutes} min on this machine.")
+    elif seen:
+        cost = (f"Computes the {left} new or changed vectors (out of {n}): about\n"
+                f"        {minutes} min on this machine. The rest is already in the\n"
+                f"        database and is not recomputed.")
     else:
         cost = (f"Computes vectors for all {n} excerpts of the \"{DOC_SET}\" set and\n"
                 f"        loads them into the database: about {minutes} min, once. An\n"
@@ -176,92 +188,136 @@ def status() -> int:
     print(f"Колекція     : {vectorstore.COLLECTION}")
     if vectorstore.alive():
         from practice.common.corpus import load_passages
+        from practice.common.idmap import assign_ids
 
         info = vectorstore.collection_info()
         have = info["points_count"] if info else 0
-        total = len(load_passages())
-        state = ("залито повністю" if have == total else
-                 "колекції ще немає" if info is None else
-                 f"недолито {total - have}" if have < total else
-                 f"на {have - total} більше, ніж фрагментів — колекція від "
-                 f"іншого видання набору, її треба залити наново")
-        print(f"Qdrant       : відповідає, точок {have} із {total} — {state}")
+        passages = load_passages()
+        total = len(passages)
+        print(f"Qdrant       : відповідає, точок {have} із {total}")
+        if info is None:
+            print("Оновлення    : колекції ще немає — залийте: --vectors")
+        else:
+            _, uid_of = assign_ids(passages)
+            new, changed, unchanged, want_ids = _plan(passages, uid_of)
+            orphans = _orphans(want_ids)
+            print(f"Оновлення    : нових {len(new)}, змінених {len(changed)}, "
+                  f"незмінних {len(unchanged)}, зайвих {len(orphans)}")
+            if have and not unchanged and not changed:
+                print("               жодну наявну точку не впізнано як поточний "
+                      "фрагмент —")
+                print("               стара схема номерів або інший корпус; "
+                      "--vectors скаже, як перейти")
+            elif not new and not changed:
+                print("               усі вектори на місці й актуальні — "
+                      "рахувати нічого")
     else:
         print(f"Qdrant       : не відповідає ({vectorstore.QDRANT_URL})")
     return 0
 
 
-def _aligned(passages, uid_of, have: int) -> bool:
-    """Чи означають наявні точки ті самі фрагменти, що й тепер.
+# Простір імен для стійких номерів точок. Стала назавжди: номер фрагмента мусить
+# виходити той самий на будь-якій машині й у будь-якому прогоні, інакше «те саме»
+# не впізнається. Саме значення довільне — важливо лише, щоб воно не мінялося.
+_NAMESPACE = uuid.UUID("6d0d1f6e-2b8a-4a1e-9f3c-6ec0ffee6006")
 
-    Продовження перерваного заливання тримається на одному припущенні: номер
-    точки — це порядковий номер фрагмента в наборі, і перші N точок описують
-    перші N фрагментів. Припущення чесне рівно доти, доки набір лише росте з
-    кінця. Варто додати документ, який за іменем стає в середину списку, — і всі
-    наступні фрагменти з'їдуть на місце сусідів, а дорахунок з N-го тихо
-    припише текст одного фрагмента до вектора іншого. Зовні це не видно ніяк:
-    пошук працює, просто відповідає не тим.
 
-    Тому перед дорахунком беруться три наявні точки — перша, середня й остання —
-    і звіряються їхні ідентифікатори з тими, що лежать на тих самих місцях
-    зараз. Три, а не всі: збіг на кінцях і в середині означає, що список не
-    зсувався, а повна звірка коштувала б окремого проходу по всій базі.
+def _stable_id(uid: str) -> str:
+    """Стійкий номер точки з ідентифікатора фрагмента. Не залежить ні від позиції
+    у списку, ні від машини — лише від самого uid."""
+    return str(uuid.uuid5(_NAMESPACE, uid))
+
+
+def _digest(text: str) -> str:
+    """Сума тексту фрагмента. За нею відрізняємо змінений фрагмент від того, що
+    лежить у базі без змін."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _plan(passages, uid_of):
+    """Розкладає фрагменти на три купи, не рахуючи жодного вектора: нові (номера
+    немає в базі), змінені (номер є, сума інша) і незмінні (номер є, сума та
+    сама). Повертає (new, changed, unchanged) — списки четвірок
+    (фрагмент, uid, стійкий номер, сума) — і множину стійких номерів усіх
+    поточних фрагментів.
+
+    Номер точки — стійкий, зроблений з uid фрагмента, а не з його позиції у
+    списку. Тому правка документа в середині набору не збиває номери решти:
+    оновиться лише той фрагмент, чия сума змінилася, а колишня звірка «перші N
+    точок — це перші N фрагментів» більше не потрібна.
     """
     from practice.common import vectorstore
 
-    probes = sorted({0, have // 2, have - 1})
-    stored = vectorstore.fetch(probes)
-    for i in probes:
-        payload = stored.get(i)
-        if payload is None or payload.get("uid") != uid_of[passages[i]]:
-            print(f"  точка {i} описує «{(payload or {}).get('uid')}», а на цьому "
-                  f"місці тепер «{uid_of[passages[i]]}»")
-            return False
-    return True
+    want = [(p, uid_of[p], _stable_id(uid_of[p]), _digest(p.text)) for p in passages]
+    want_ids = {sid for _, _, sid, _ in want}
+    ids = [sid for _, _, sid, _ in want]
+    stored: dict = {}
+    for start in range(0, len(ids), vectorstore.BATCH):
+        stored.update(vectorstore.fetch(ids[start:start + vectorstore.BATCH]))
+    new, changed, unchanged = [], [], []
+    for rec in want:
+        _, _, sid, digest = rec
+        payload = stored.get(sid)
+        if payload is None:
+            new.append(rec)
+        elif payload.get("digest") != digest:
+            changed.append(rec)
+        else:
+            unchanged.append(rec)
+    return new, changed, unchanged, want_ids
 
 
-def _fill(passages, uid_of, start: int) -> int:
+def _orphans(want_ids: set) -> list:
+    """Стійкі номери точок, що лежать у колекції, але яких немає серед поточних
+    фрагментів: описують текст, який із документів зник. Лише читання."""
+    from practice.common import vectorstore
+
+    return [sid for sid in vectorstore.all_ids() if sid not in want_ids]
+
+
+def _fill(todo: list) -> int:
     """Рахує вектори і заливає їх пачками, друкуючи поступ.
 
     Пачками, а не одним махом, з двох причин. Перша: рахунок трьох із половиною
     тисяч фрагментів триває хвилини, і людина за терміналом мусить бачити, що
     робота йде, а не гадати, чи процес живий. Друга: пачка, яку вже прийняв
     Qdrant, лишається в колекції назавжди, тому перерваний Ctrl+C запуск не
-    зникає в нікуди — наступний починає з того місця, де зупинився попередній.
+    зникає в нікуди.
 
-    Продовження спирається на те, що номер точки — це порядковий номер фрагмента
-    в наборі, а заливання йде строго по порядку. Тому N точок у колекції означає
-    рівно перші N фрагментів, і рахувати треба з N-го; чи це припущення досі
-    правдиве, звіряє _aligned вище. Нічого не видаляється: до наявних точок лише
-    дописуються нові.
+    `todo` — це список четвірок (фрагмент, uid, стійкий номер, сума) з _plan:
+    рівно ті фрагменти, які треба порахувати (нові й змінені). Порядок не
+    важливий — у кожної точки свій стійкий номер, тож перервати безпечно:
+    наступний запуск побачить залите як «сума та сама» й продовжить із рештою.
+    Нічого не видаляється: до наявних точок лише дописуються нові, а змінені
+    перезаписуються на своїх номерах.
     """
     from practice.common import embed, vectorstore
 
-    rest = passages[start:]
-    total = len(passages)
+    total = len(todo)
     t0 = time.perf_counter()
     batch: list[dict] = []
     sent = 0
 
     # embed() віддає вектори по одному, у порядку тексту, тож накопичуємо пачку
     # і відправляємо її, не чекаючи, поки порахується весь набір.
-    stream = embed.model().embed([p.text for p in rest], batch_size=embed.BATCH)
+    stream = embed.model().embed([p.text for p, _, _, _ in todo],
+                                 batch_size=embed.BATCH)
     for offset, vector in enumerate(stream):
-        p = rest[offset]
+        p, uid, sid, digest = todo[offset]
         batch.append({
-            "id": start + offset,
+            "id": sid,
             "vector": vector.tolist(),
-            "payload": {"uid": uid_of[p], "pid": p.pid, "doc_id": p.doc_id,
-                        "doc_title": p.doc_title, "section": p.section,
-                        "label": p.label, "url": p.url, "text": p.text},
+            "payload": {"uid": uid, "digest": digest, "pid": p.pid,
+                        "doc_id": p.doc_id, "doc_title": p.doc_title,
+                        "section": p.section, "label": p.label,
+                        "url": p.url, "text": p.text},
         })
         if len(batch) == vectorstore.BATCH:
             sent += vectorstore.upsert(batch)
             batch = []
-            done = start + sent
             spent = time.perf_counter() - t0
-            left = spent / sent * (total - done)
-            print(f"  {done}/{total}, минуло {spent:.0f} с, "
+            left = spent / sent * (total - sent)
+            print(f"  {sent}/{total}, минуло {spent:.0f} с, "
                   f"лишилося приблизно {left:.0f} с", flush=True)
     if batch:
         sent += vectorstore.upsert(batch)
@@ -367,45 +423,57 @@ def enable_vectors(refill: bool = False) -> int:
 
     passages = load_passages()
     _, uid_of = assign_ids(passages)
-    print(f"  фрагментів у наборі «{DOC_SET}»: {len(passages)}")
+    n = len(passages)
+    print(f"  фрагментів у наборі «{DOC_SET}»: {n}")
 
     created = vectorstore.ensure_collection(embed.DIM)
     print(f"  колекція {vectorstore.COLLECTION}: "
           f"{'створена' if created else 'уже була'}")
 
-    have = 0 if refill else vectorstore.count()
-    if have > len(passages):
-        print(f"\nУ колекції {have} точок, а фрагментів у наборі {len(passages)}.\n"
-              "Це не «залито з запасом», а інше видання набору: документи відтоді\n"
-              "змінилися, фрагментів стало менше, і зайві точки описують текст,\n"
-              "якого в наборі вже немає, — але пошук їх і далі знаходить.\n"
-              "Дорахунок не рятує: міняти треба не хвіст, а всі номери після того\n"
-              "місця, де набір скоротився. Колекцію треба прибрати і залити наново;\n"
-              "видаляєте її ви самі, у практиці такої команди немає навмисно:\n"
+    new, changed, unchanged, want_ids = _plan(passages, uid_of)
+    have = vectorstore.count()
+
+    # Жоден поточний фрагмент не впізнано, а точки в колекції є: або вона під
+    # старою схемою номерів (номер-позиція з попередньої версії практики), або в
+    # ній зовсім інший корпус. Доливати не можна — старі точки лишилися б поряд
+    # дублями. Знести й залити наново вирішує людина.
+    if have and not refill and not unchanged and not changed:
+        print(f"\nУ колекції {have} точок, але жодну не впізнано як поточний "
+              f"фрагмент.\nСхоже, це стара схема номерів або інший корпус. Доливання "
+              f"лишило б\nстарі точки поряд дублями, тому я його не роблю. Перехід — "
+              f"через\nодноразове перезаливання наново (видаляєте колекцію ви самі):\n"
               f"  curl -X DELETE {vectorstore.QDRANT_URL}/collections/"
               f"{vectorstore.COLLECTION}\n"
-              "  python -m practice.base.setup --vectors")
-        return 1
-    if have and have < len(passages) and not _aligned(passages, uid_of, have):
-        print("\nНаявні точки описують не ті фрагменти, що лежать на їхніх місцях\n"
-              "тепер: набір документів змінився не з кінця, а всередині. Дорахунок\n"
-              "у такому стані приписав би текст одного фрагмента до вектора іншого,\n"
-              "тому я його не роблю і нічого не чіпаю.\n"
-              "Лікується перерахунком усього набору:\n"
-              "  python -m practice.base.setup --vectors --refill")
+              f"  python -m practice.base.setup --vectors")
         return 1
 
-    if have >= len(passages):
-        print(f"  у колекції вже {have} "
-              f"{nform(have, 'точка', 'точки', 'точок')} — заливати нічого")
+    todo = (new + changed + unchanged) if refill else (new + changed)
+    if refill:
+        print(f"  --refill: перераховую всі {n}")
     else:
-        if have:
-            print(f"  у колекції {have} {nform(have, 'точка', 'точки', 'точок')} "
-                  f"із {len(passages)} — рахую решту")
+        print(f"  нових {len(new)}, змінених {len(changed)}, "
+              f"незмінних {len(unchanged)} — рахую {len(todo)}")
+
+    if not todo:
+        print(f"  у колекції вже всі {n} "
+              f"{nform(n, 'точка', 'точки', 'точок')} і вони актуальні — "
+              f"заливати нічого")
+    else:
         print(f"  рахую вектори моделлю {embed.MODEL_NAME} "
               f"(перший запуск ще й довантажує її)...")
-        sent = _fill(passages, uid_of, have)
+        sent = _fill(todo)
         print(f"  залито точок: {sent}, у колекції тепер {vectorstore.count()}")
+
+    orphans = _orphans(want_ids)
+    if orphans:
+        m = len(orphans)
+        print(f"\n  {m} {nform(m, 'точка', 'точки', 'точок')} описують текст,\n"
+              f"  якого в документах уже немає. Пошук їх не показує (їхній фрагмент\n"
+              f"  не входить у набір). Прибрати фізично можна лише знесенням\n"
+              f"  колекції — робите це ви самі:\n"
+              f"    curl -X DELETE {vectorstore.QDRANT_URL}/collections/"
+              f"{vectorstore.COLLECTION}\n"
+              f"    python -m practice.base.setup --vectors")
 
     write_mode({"search": "vectors", "docs": DOC_SET, "model": embed.MODEL_KEY,
                 "collection": vectorstore.COLLECTION, "points": vectorstore.count()})

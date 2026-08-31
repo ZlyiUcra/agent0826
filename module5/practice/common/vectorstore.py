@@ -188,12 +188,32 @@ def upsert(points: list[dict], name: str = COLLECTION) -> int:
     return sent
 
 
-def fetch(ids: list[int], name: str = COLLECTION) -> dict[int, dict]:
-    """Payload названих точок, за їхніми номерами. Потрібно, щоб перевірити, чи
-    точка з номером N досі описує той самий фрагмент, що й раніше."""
+def fetch(ids: list, name: str = COLLECTION) -> dict:
+    """Payload названих точок, за їхніми стійкими номерами. Потрібно, щоб знати,
+    чи точка з цим номером уже лежить і чи не змінився її текст: у payload лежить
+    сума тексту, і заливання порівнює її з поточною. Ключ — номер як є (рядок
+    UUID), без перетворення на число."""
     res = _request("POST", f"/collections/{name}/points",
                    {"ids": ids, "with_payload": True})["result"]
-    return {int(r["id"]): r["payload"] for r in res}
+    return {r["id"]: r["payload"] for r in res}
+
+
+def all_ids(name: str = COLLECTION) -> set:
+    """Номери всіх точок колекції. Лише читання: гортає сторінками (scroll) без
+    векторів і payload. Потрібно, щоб знайти точки, яких немає серед поточних
+    фрагментів, — тобто такі, що описують уже видалений текст. Нічого не видаляє."""
+    ids: set = set()
+    offset = None
+    while True:
+        body = {"limit": 1024, "with_payload": False, "with_vector": False}
+        if offset is not None:
+            body["offset"] = offset
+        res = _request("POST", f"/collections/{name}/points/scroll", body)["result"]
+        for point in res["points"]:
+            ids.add(point["id"])
+        offset = res.get("next_page_offset")
+        if offset is None:
+            return ids
 
 
 def search(vector: list[float], limit: int, name: str = COLLECTION) -> list[dict]:
