@@ -26,7 +26,7 @@ import time
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.trace import SpanKind
+from opentelemetry.trace import SpanKind, Status, StatusCode
 
 SERVICE = "docfactory-ecmascript"
 
@@ -97,6 +97,7 @@ def _instrument_call(tracer):
                 resp = original(**kwargs)
             except Exception as exc:                # noqa: BLE001 - тип іде в спан
                 s.set_attribute("error.type", type(exc).__name__)
+                s.set_status(Status(StatusCode.ERROR, str(exc)[:120]))
                 raise
 
             u = getattr(resp, "usage", None)
@@ -149,6 +150,9 @@ def _instrument_dispatch(tracer):
             ok = "error" not in out
             if not ok:
                 s.set_attribute("error.type", str(out["error"])[:80])
+                # Статус, а не лише атрибут: без нього приймач вважає спан
+                # успішним, і відсіяти невдалі звернення можна лише очима.
+                s.set_status(Status(StatusCode.ERROR, str(out["error"])[:120]))
             # Яким способом шукав сервер — по словах чи ще й за змістом. Без цього
             # два прогони можна порівняти лише на віру: режим залежить від того,
             # чи піднялися вектори, а це видно тільки тут.
@@ -206,6 +210,8 @@ def traced_run(query: str, tracer, instance: str = "ecmascript") -> dict:
         root.set_attribute("docfactory.tool.calls", len(CALLS))
         if report["blocked"]:
             root.set_attribute("error.type", "blocked_by_layer")
+            by = "; ".join(b["by"] for b in report["blocked"])
+            root.set_status(Status(StatusCode.ERROR, f"заблоковано шарами: {by}"))
         trace_id = format(root.get_span_context().trace_id, "032x")
 
     report["calls"] = list(CALLS)
