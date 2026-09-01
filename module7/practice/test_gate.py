@@ -14,11 +14,19 @@
 все. Провалений кейс видно як xfail, і саме за ним потім дивляться трейс.
 """
 
+import json
+
 import pytest
 
+from practice import bootstrap
 from practice import evaluation as ev
 
 CASES = ev.load_dataset()
+
+#: Паспорт корпусу: перелік дозволених інструментів і розділи, на які націлений
+#: набір, зняті з живого корпусу і покладені під git. Завдяки йому перевірки
+#: набору не залежать від того, чи лежить поруч фабрика.
+PASSPORT = json.loads((ev.DATA / "corpus-passport.json").read_text(encoding="utf-8"))
 
 
 # ── Набір кейсів: перевіряється завжди, прогону не потребує ──
@@ -36,28 +44,39 @@ def test_dataset_shape():
 
 def test_dataset_tools_are_allowed():
     """Кейс не має права чекати інструмента, якого агентові не дозволено."""
-    from server import layers
     for c in CASES:
-        assert c["expects_tool"] in layers.ALLOWED_TOOLS, \
+        assert c["expects_tool"] in PASSPORT["allowed_tools"], \
             f"{c['id']}: {c['expects_tool']} не в переліку дозволених"
 
 
 def test_dataset_sections_exist():
     """Кожен очікуваний розділ існує, і саме в названому документі.
 
-    Документ обов'язковий: у наборі 216 номерів розділів повторюються в різних
-    документах — 6.2.2 це і «The List and Record Specification Types» з ECMA-262,
-    і «CanonicalizeUnicodeLocaleId» з ECMA-402.
+    Документ обов'язковий: у корпусі 214 номерів розділів повторюються в різних
+    документах. Приклади з паспорта: 6.2.2 є в ECMA-262, в ECMA-402 і в UTS #35,
+    а однорівневий 12 — аж у п'яти документах.
     """
-    from server import spec_mcp
     for c in CASES:
         if not c["expects_section"]:
             continue
-        found = [p for p in spec_mcp._INDEX.passages
-                 if p.label.startswith(c["expects_section"] + " ")
-                 and getattr(p, "doc_id", "") == c["expects_document"]]
-        assert found, (f"{c['id']}: розділу {c['expects_section']} немає в документі "
-                       f"{c['expects_document']}")
+        docs = PASSPORT["sections"].get(c["expects_section"])
+        assert docs, (f"{c['id']}: розділу {c['expects_section']} немає в паспорті — "
+                      f"перезніміть його: python -m practice.base.passport")
+        assert c["expects_document"] in docs, (
+            f"{c['id']}: розділ {c['expects_section']} є не в "
+            f"{c['expects_document']}, а в {docs}")
+
+
+@pytest.mark.skipif(not bootstrap.available(), reason="фабрики поруч немає — звіряти паспорт нема з чим")
+def test_passport_matches_the_live_corpus():
+    """Паспорт — датований знімок, і він мусить не розходитися з корпусом.
+
+    Без цієї перевірки перевірки набору вище перетворилися б на самообман:
+    вони звіряли б набір із файлом, який колись зняли й відтоді не чіпали.
+    """
+    from practice.base import passport as pp
+    diff = pp._diff(PASSPORT, pp.build(PASSPORT["instance"], CASES))
+    assert not diff, "паспорт розійшовся з корпусом:\n  " + "\n  ".join(diff)
 
 
 # ── Гейт над збереженим прогоном ──
@@ -183,6 +202,30 @@ def test_grounding_ignores_numbers_inside_code():
     """Приклад `"3.14" == 3.14` — не посилання на розділ 3.14."""
     ok, invented = ev.grounded('Наприклад, `"3.14" == 3.14` дає true; див. 20.1.3.6.', _HITS)
     assert ok, invented
+
+
+def test_score_and_gate_rules():
+    """Самі правила гейта, без прогону: де саме проходить межа.
+
+    Прогін для цього не потрібен і не мусить бути потрібен — інакше правила
+    гейта можна було б перевірити лише за гроші. Ряди тут зібрані руками.
+    """
+    def rows(passed: int, total: int, tools_ok: int):
+        return [{"pass": i < passed, "tool_ok": i < tools_ok} for i in range(total)]
+
+    green = ev.score(rows(17, 20, 20))
+    assert green["score"] == 0.85 and green["gate"] == "PASS"
+    assert green["tool_accuracy"] == 1.0
+
+    # Рівно на порозі гейт ще зелений, на кейс нижче — уже червоний.
+    assert ev.score(rows(16, 20, 20))["gate"] == "PASS"
+    assert ev.score(rows(15, 20, 20))["gate"] == "FAIL"
+
+    # Друга частка блокує окремо: кейси проходять, а інструменти загублено.
+    strayed = ev.score(rows(17, 20, 17))
+    assert strayed["score"] >= ev.THRESHOLD
+    assert strayed["tool_accuracy"] < ev.TOOL_ACCURACY
+    assert strayed["gate"] == "FAIL", "друга частка мусить зупиняти реліз сама собою"
 
 
 def test_judge_rejects_an_answer_that_dictates_its_own_verdict():

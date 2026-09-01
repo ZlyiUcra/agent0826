@@ -30,10 +30,28 @@ INSTANCES = DOCFACTORY / "instances"
 KEY_INSTANCE = "ecmascript"
 
 
+def available(instance: str = KEY_INSTANCE) -> bool:
+    """Чи лежить поруч примірник фабрики.
+
+    Тека `docfactory/` живе поза репозиторієм курсу, тож у клоні її немає. Це
+    нормальний стан, а не збій: безкоштовні перевірки набору й правил обходяться
+    паспортом корпусу з `data/`. Питання ставлять тут, а не через try/except
+    навколо імпорту, щоб відсутність фабрики не плуталася з поламаним імпортом.
+    """
+    return (INSTANCES / instance).is_dir()
+
+
 def use(instance: str = "ecmascript", vectors_wait: bool = True) -> pathlib.Path:
     """Готує процес до роботи з примірником і повертає його теку."""
     target = INSTANCES / instance
     if not target.is_dir():
+        # Дві різні біди, і повідомлення в них різні: фабрики немає взагалі
+        # (звичайний стан клону) чи вона є, але без цього примірника.
+        if not INSTANCES.is_dir():
+            raise SystemExit(
+                f"Фабрики немає: {DOCFACTORY}\n"
+                f"  Платні прогони працюють лише поруч із нею. Безкоштовні перевірки\n"
+                f"  її не потребують: python -m pytest practice")
         raise SystemExit(
             f"Немає примірника «{instance}»: {target}\n"
             f"  наявні: {', '.join(sorted(p.name for p in INSTANCES.iterdir() if p.is_dir()))}")
