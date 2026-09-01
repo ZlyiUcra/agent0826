@@ -1,0 +1,40 @@
+# 1.x прибрав temperature з messages.create() — код працює на обох
+# мажорах (core/agent.py прибирає аргумент, якщо його не беруть):
+anthropic>=0.40,<2
+python-dotenv>=1.0.0
+
+sentence-transformers>=3.0
+qdrant-client>=1.12        # векторна БД: вбудований :memory: або сервер
+
+# фреймворки:
+langchain>=1.3
+langgraph>=1.2
+
+# MCP-сервер (SDK 1.x = FastMCP, 2.0 = MCPServer — код підтримує обидва):
+mcp[cli]>=2.1
+
+# експорт трейсів (опційно, без ключів деградує до локального):
+langfuse>=2.50
+
+# A2A (a2a_server.py + a2a_client.py). Саме 1.x — у 0.x інші типи й методи:
+a2a-sdk>=1.1
+uvicorn>=0.30
+fastapi>=0.115
+httpx>=0.27
+
+# М7 — спостережуваність за домовленостями OTel GenAI (otel_tracing.py).
+# Одна інструментація, пʼять бекендів: console, phoenix, langfuse,
+# langsmith, otlp. Жоден не потребує свого SDK — лише ці два пакети.
+opentelemetry-sdk>=1.40
+opentelemetry-exporter-otlp-proto-http>=1.40
+
+# arize-phoenix НАВМИСНО не тут. Він тягне fastmcp-slim, який вимагає
+# mcp<2.0, а нам для М5 потрібен mcp[cli]>=2.1 — разом вони не стають.
+# Phoenix і не має жити в цьому оточенні: це окремий процес-приймач, він
+# спілкується з агентом по HTTP, а не через імпорт. Ставте його окремо:
+#   python3 -m venv ~/.venv-phoenix && ~/.venv-phoenix/bin/pip install arize-phoenix
+#   ~/.venv-phoenix/bin/phoenix serve
+# Потім, у ЦЬОМУ оточенні: python otel_tracing.py --backend phoenix
+
+# евали як юніт-тести (test_eval_gate.py)
+pytest>=8.0
