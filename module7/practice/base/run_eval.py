@@ -69,7 +69,10 @@ def main(argv: list[str]) -> int:
 
         t_ok = ev.tool_ok(case, calls)
         s_ok = ev.section_ok(case, answer)
-        g_ok, invented = ev.grounded(answer, calls)
+        # Опора має сенс лише там, де є на що спиратися: кейс «цього немає в
+        # специфікації» перевіряється суддею, а не звіркою номерів.
+        g_ok, invented = (ev.grounded(answer, calls) if case["expects_section"]
+                          else (True, []))
         row = {**case, "answer": answer, "calls": calls,
                "trace_id": report["trace_id"], "seconds": report["seconds"],
                "usage": report["usage"], "blocked": report["blocked"],
@@ -94,6 +97,7 @@ def main(argv: list[str]) -> int:
     path = ev.OUT / f"run-{args.label}.json"
     path.write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    ev.append_history(run)
     print(f"\nПозначки: і — інструмент, р — названо розділ, о — опора на видачу, с — суддя")
     print(f"Скор: {summary['passed']}/{summary['cases']} = {summary['score']} "
           f"(поріг {summary['threshold']}) | інструменти {summary['tool_accuracy']} "

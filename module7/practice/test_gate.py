@@ -160,11 +160,29 @@ def test_tool_ok_ignores_a_rejected_call():
     assert ev.tool_ok(case, [{"tool": "read_section", "ok": True, "output": {}}])
 
 
-def test_section_ok_inverts_for_a_case_without_grounding():
-    """Кейс «цього немає в специфікації»: назвати розділ — це провал."""
+def test_section_ok_for_a_case_without_grounding():
+    """Кейсові «цього немає в специфікації» немає чого називати.
+
+    Раніше тут стояла інверсія — будь-яка згадка розділу означала провал. Точка
+    відліку показала, чого вона варта: агент правильно сказав, що fetch не
+    визначений в ECMA-262, і принагідно згадав, що Promise визначений у 27.2.
+    Відповідь правильна, а перевірка валила її за зайву обізнаність.
+    """
     empty = {"expects_section": ""}
     assert ev.section_ok(empty, "Специфікація ECMAScript цього не описує.")
-    assert not ev.section_ok(empty, "Дивіться розділ 27.5.4.1.")
+    assert ev.section_ok(empty, "Цього тут немає, хоча Promise описано в 27.2.")
+
+
+def test_section_ok_finds_a_top_level_number():
+    """«Section 12» — теж розділ, хоч у ньому й немає крапки."""
+    assert ev.section_ok({"expects_section": "12"}, "Дивіться Section 12 про лексику.")
+    assert not ev.section_ok({"expects_section": "12"}, "Дивіться розділ 5.1.2.")
+
+
+def test_grounding_ignores_numbers_inside_code():
+    """Приклад `"3.14" == 3.14` — не посилання на розділ 3.14."""
+    ok, invented = ev.grounded('Наприклад, `"3.14" == 3.14` дає true; див. 20.1.3.6.', _HITS)
+    assert ok, invented
 
 
 def test_judge_rejects_an_answer_that_dictates_its_own_verdict():
