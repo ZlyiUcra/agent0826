@@ -2,7 +2,7 @@
 Гейт релізу і перевірки набору. БЕЗКОШТОВНО: до моделі не ходить.
 
     cd module7
-    <venv примірника>/bin/python -m pytest practice -q
+    .venv/bin/python -m pytest practice -q
 
 Платні дані сюди приходять файлом: прогін знімається окремо
 (`python -m practice.base.run_eval --label baseline`), а тести читають останній
@@ -14,19 +14,31 @@
 все. Провалений кейс видно як xfail, і саме за ним потім дивляться трейс.
 """
 
-import json
-
 import pytest
 
-from practice import bootstrap
 from practice import evaluation as ev
 
 CASES = ev.load_dataset()
 
-#: Паспорт корпусу: перелік дозволених інструментів і розділи, на які націлений
-#: набір, зняті з живого корпусу і покладені під git. Завдяки йому перевірки
-#: набору не залежать від того, чи лежить поруч фабрика.
-PASSPORT = json.loads((ev.DATA / "corpus-passport.json").read_text(encoding="utf-8"))
+
+@pytest.fixture(scope="session")
+def sections_in_corpus() -> dict:
+    """Номер розділу -> документи, у яких він трапляється.
+
+    Читається з тих самих файлів, з яких читає сервер знань, і будується один
+    раз на сесію: увесь набір розкладається на фрагменти менш ніж за півсекунди,
+    а ключів і мережі для цього не треба.
+    """
+    from practice.common.corpus import load_passages
+
+    where: dict[str, list] = {}
+    for p in load_passages():
+        if not p.section:
+            continue
+        docs = where.setdefault(p.section, [])
+        if p.doc_id not in docs:
+            docs.append(p.doc_id)
+    return where
 
 
 # ── Набір кейсів: перевіряється завжди, прогону не потребує ──
@@ -44,39 +56,40 @@ def test_dataset_shape():
 
 def test_dataset_tools_are_allowed():
     """Кейс не має права чекати інструмента, якого агентові не дозволено."""
+    from practice.base import layers
+
     for c in CASES:
-        assert c["expects_tool"] in PASSPORT["allowed_tools"], \
+        assert c["expects_tool"] in layers.ALLOWED_TOOLS, \
             f"{c['id']}: {c['expects_tool']} не в переліку дозволених"
 
 
-def test_dataset_sections_exist():
+def test_dataset_sections_exist(sections_in_corpus):
     """Кожен очікуваний розділ існує, і саме в названому документі.
 
     Документ обов'язковий: у корпусі 214 номерів розділів повторюються в різних
-    документах. Приклади з паспорта: 6.2.2 є в ECMA-262, в ECMA-402 і в UTS #35,
-    а однорівневий 12 — аж у п'яти документах.
+    документах. 6.2.2 є в ECMA-262, в ECMA-402 і в UTS #35, а однорівневий 12 —
+    аж у п'яти документах. Кейс, який називає лише номер, звірявся б із чужим
+    розділом і мовчки проходив.
     """
     for c in CASES:
         if not c["expects_section"]:
             continue
-        docs = PASSPORT["sections"].get(c["expects_section"])
-        assert docs, (f"{c['id']}: розділу {c['expects_section']} немає в паспорті — "
-                      f"перезніміть його: python -m practice.base.passport")
+        docs = sections_in_corpus.get(c["expects_section"])
+        assert docs, f"{c['id']}: розділу {c['expects_section']} у корпусі немає"
         assert c["expects_document"] in docs, (
             f"{c['id']}: розділ {c['expects_section']} є не в "
             f"{c['expects_document']}, а в {docs}")
 
 
-@pytest.mark.skipif(not bootstrap.available(), reason="фабрики поруч немає — звіряти паспорт нема з чим")
-def test_passport_matches_the_live_corpus():
-    """Паспорт — датований знімок, і він мусить не розходитися з корпусом.
+def test_section_numbers_repeat_across_documents(sections_in_corpus):
+    """Підстава для попередньої перевірки, а не окрема цікавинка.
 
-    Без цієї перевірки перевірки набору вище перетворилися б на самообман:
-    вони звіряли б набір із файлом, який колись зняли й відтоді не чіпали.
+    Якби номер розділу адресував рівно один текст, документ у кейсі був би
+    зайвим полем. Він не зайвий, і ось скільки саме номерів його потребують.
     """
-    from practice.base import passport as pp
-    diff = pp._diff(PASSPORT, pp.build(PASSPORT["instance"], CASES))
-    assert not diff, "паспорт розійшовся з корпусом:\n  " + "\n  ".join(diff)
+    repeated = {s: d for s, d in sections_in_corpus.items() if len(d) > 1}
+    assert len(repeated) == 214, f"повторюваних номерів {len(repeated)}, а не 214"
+    assert len(sections_in_corpus["12"]) == 5, "номер 12 мав траплятися в п'ятьох документах"
 
 
 # ── Гейт над збереженим прогоном ──
@@ -119,7 +132,8 @@ def test_release_gate(run):
     """Другий блокувальний агрегат: якість набору просіла — реліз стоїть."""
     assert run["score"] >= ev.THRESHOLD, (
         f"скор {run['score']} < {ev.THRESHOLD}: {run['passed']}/{run['cases']} "
-        f"у прогоні «{run['label']}» ({run['instance']}) — реліз зупинено")
+        f"у прогоні «{run['label']}» "
+        f"({run.get('corpus') or run.get('instance')}) — реліз зупинено")
 
 
 def test_run_is_comparable(run):
@@ -132,6 +146,12 @@ def test_run_is_comparable(run):
     assert run["search_modes"] == ["meaning+words"], (
         f"прогін «{run['label']}» шукав як {run['search_modes']} — "
         f"з іншим прогоном його порівнювати не можна")
+    # Набір документів — друга умова порівнюваності, і окрема від способу пошуку:
+    # прогін на вужчому наборі може мати залиті вектори й пройти перевірку вище,
+    # вимірявши при цьому інший корпус.
+    assert run.get("docs", "suite") == "suite", (
+        f"прогін «{run['label']}» знято на наборі {run.get('docs')}, "
+        f"а записані — на suite")
 
 
 # ── Самі правила перевірки: без прогону і без моделі ──
@@ -226,6 +246,29 @@ def test_score_and_gate_rules():
     assert strayed["score"] >= ev.THRESHOLD
     assert strayed["tool_accuracy"] < ev.TOOL_ACCURACY
     assert strayed["gate"] == "FAIL", "друга частка мусить зупиняти реліз сама собою"
+
+
+def test_layer2_remembers_ids_from_a_real_search_result():
+    """Стик між сервером і шаром 2, і саме на справжній видачі, а не на макеті.
+
+    Шар 2 пускає read_section лише на ідентифікатор, який агент справді дістав
+    із попереднього пошуку, і бере ці ідентифікатори з відповіді search_spec.
+    Варто серверові назвати список інакше — і шар 2 не запам'ятає нічого, після
+    чого КОЖЕН read_section дістане відмову, а прогін опише агента, який жодного
+    разу не дочитує розділ. Саме це одного разу й сталося, і коштувало цілої
+    точки відліку. Тому перевірка кличе сервер по-справжньому: макет повторив би
+    ту саму помилку в імені поля й нічого не спіймав.
+    """
+    from practice.base import layers, spec_server
+
+    found = spec_server.search_spec("Object.prototype.toString tag", k=2)
+    assert found["found"] == 2, found
+
+    sess = layers.Session()
+    sess.remember(found)
+    known = found["passages"][0]["id"]
+    assert layers.deny_before("read_section", {"id": known}, sess) is None
+    assert layers.deny_before("read_section", {"id": "вигаданий#1.2.3"}, sess)
 
 
 def test_judge_rejects_an_answer_that_dictates_its_own_verdict():

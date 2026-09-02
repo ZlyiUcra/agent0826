@@ -5,3 +5,6 @@ __pycache__/
 out/
 eval_history.jsonl
 data/from_traces.jsonl
+
+# зіпсована копія корпусу — її збирає practice/base/degrade.py
+practice/docs-degraded/

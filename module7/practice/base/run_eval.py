@@ -7,7 +7,7 @@
 ходить.
 
     python -m practice.base.run_eval --label baseline
-    python -m practice.base.run_eval --label degraded --instance ecmascript-degraded
+    python -m practice.base.run_eval --label degraded --degraded
     python -m practice.base.run_eval --label proba --only same-value,json-valid
 
 Порядок величини: двадцять кейсів — кілька десятків звернень до моделі агента
@@ -17,20 +17,39 @@
 import argparse
 import datetime
 import json
+import os
 import sys
-
-from practice import bootstrap
 
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="прогін набору кейсів із трейсингом")
     ap.add_argument("--label", required=True, help="мітка прогону: baseline, degraded, …")
-    ap.add_argument("--instance", default="ecmascript", help="примірник фабрики")
+    ap.add_argument("--degraded", action="store_true",
+                    help="читати деградовану копію корпусу (docs-degraded/)")
+    ap.add_argument("--docs", default="suite",
+                    help="набір документів; обидва записані прогони зняті на suite")
     ap.add_argument("--backend", default="phoenix", help="куди слати спани")
     ap.add_argument("--only", default="", help="через кому: прогнати лише ці кейси")
     args = ap.parse_args(argv)
 
-    bootstrap.use(args.instance)
+    # Усі три змінні виставляються ДО першого імпорту practice.common: набір
+    # документів обирається на імпорті модуля, і запізніла зміна вже нічого не
+    # означала б. Оточення успадковує підпроцес сервера знань — саме там воно й
+    # вирішує, які файли читати.
+    #
+    # Набір задається тут, а не береться з оточення, і це не перестраховка:
+    # module7/.env несе PRACTICE_DOCS для курсових файлів модуля, config.py
+    # заносить його в оточення на імпорті, і прогін мовчки міряв би інший корпус
+    # та шукав би в іншій, порожній колекції. Хто справді хоче інший набір, каже
+    # це прапорцем --docs, і набір лягає у файл прогону.
+    os.environ["PRACTICE_DOCS"] = args.docs
+    if args.degraded:
+        os.environ["PRACTICE_DEGRADED"] = "1"
+    # Прогрів векторів синхронний: інакше перші питання прогону шукали б по
+    # словах, пізніші за змістом, і число залежало б від того, що встигло раніше.
+    os.environ.setdefault("PRACTICE_VECTORS_WAIT", "1")
+    corpus = "degraded" if args.degraded else "suite"
+
     from opentelemetry.trace import SpanKind
     from practice import evaluation as ev
     from practice import tracing
@@ -49,7 +68,7 @@ def main(argv: list[str]) -> int:
     rows, judge_usd = [], 0.0
     for i, case in enumerate(cases, 1):
         print(f"  [{i:>2}/{len(cases)}] {case['id']:<24}", end=" ", flush=True)
-        report = tracing.traced_run(case["query"], tracer, instance=args.instance)
+        report = tracing.traced_run(case["query"], tracer, corpus=corpus)
         answer = report["answer"]
         calls = report["calls"]
 
@@ -62,9 +81,9 @@ def main(argv: list[str]) -> int:
         before = {m: dict(u) for m, u in tracing.USAGE.items()}
         with tracer.start_as_current_span(f"judge {case['id']}",
                                           kind=SpanKind.INTERNAL) as js:
-            js.set_attribute("docfactory.judged_trace_id", report["trace_id"])
+            js.set_attribute("spec.judged_trace_id", report["trace_id"])
             verdict = ev.judge(case, answer, calls)
-            js.set_attribute("docfactory.judge.pass", bool(verdict["pass"]))
+            js.set_attribute("spec.judge.pass", bool(verdict["pass"]))
         judge_usd += _delta_usd(before, tracing.USAGE)
 
         t_ok = ev.tool_ok(case, calls)
@@ -86,7 +105,7 @@ def main(argv: list[str]) -> int:
 
     summary = ev.score(rows)
     agent_usd = round(sum(r["usage"]["usd"] for r in rows), 6)
-    run = {"label": args.label, "instance": args.instance,
+    run = {"label": args.label, "corpus": corpus, "docs": args.docs,
            "when": datetime.datetime.now().isoformat(timespec="seconds"),
            "search_modes": sorted({c["search"] for r in rows for c in r["calls"]
                                    if c.get("search")}),
@@ -104,7 +123,7 @@ def main(argv: list[str]) -> int:
           f"(поріг {summary['tool_threshold']}) | гейт {summary['gate']}")
     print(f"Вартість: агент ${agent_usd}, суддя ${round(judge_usd, 6)}; "
           f"пошук: {', '.join(run['search_modes']) or '—'}")
-    print(f"Прогін: {path.relative_to(bootstrap.REPO)}")
+    print(f"Прогін: {path}")
     return 0
 
 

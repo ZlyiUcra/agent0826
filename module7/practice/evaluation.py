@@ -143,7 +143,7 @@ JUDGE_SYSTEM = (
 def judge(case: dict, answer: str, calls: list, ask_json=None) -> dict:
     """Змістова перевірка дешевою моделлю. Платна."""
     if ask_json is None:
-        from common.llm import ask_json as _aj
+        from core.agent import ask_json as _aj
         ask_json = _aj
 
     # Обсяг довідки судді визначений заміром, а не на око: на першій точці
@@ -195,7 +195,7 @@ def append_history(run: dict) -> None:
     із учорашнім числом. Тому історія лежить у репозиторії, а не в out/, яку
     ігнорує git разом із самими прогонами.
     """
-    row = {k: run[k] for k in ("when", "label", "instance", "cases", "passed",
+    row = {k: run[k] for k in ("when", "label", "corpus", "instance", "cases", "passed",
                                "score", "tool_accuracy", "gate", "threshold",
                                "agent_usd", "judge_usd", "search_modes",
                                "rejudged_from")

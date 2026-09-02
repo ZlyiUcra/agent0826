@@ -1,9 +1,9 @@
 """
-ТОЧКА ВХОДУ · зібрати деградовану копію примірника. БЕЗКОШТОВНО.
+ТОЧКА ВХОДУ · зібрати деградовану копію корпусу. БЕЗКОШТОВНО.
 
 Погіршувати агента можна трьома способами: зіпсувати промпт, звузити його права
 або підмінити те, що він читає. Перші два видно одразу — промпт лежить у
-репозиторії, права перевіряє smoke. Тут узято третій, і саме тому, що його не
+репозиторії, права перевіряють тести. Тут узято третій, і саме тому, що його не
 видно: у копії корпусу переписано дев'ять речень у п'яти розділах, а все інше
 лишилося тим самим. Імена файлів ті самі, кількість фрагментів та сама,
 ідентифікатори фрагментів ті самі, колекція Qdrant та сама, санітар мовчить, у
@@ -17,21 +17,28 @@
     python -m practice.base.degrade                 # зібрати копію
     python -m practice.base.degrade --check         # лише звірити наявну копію
 
-Копія лягає в docfactory/instances/ecmascript-degraded/. Якщо тека вже є, скрипт
+Копія лягає в practice/docs-degraded/, і читає її прогін із прапорцем
+--degraded. Назва набору документів при цьому не змінюється, тому ім'я колекції
+векторів лишається тим самим — у цьому вся суть досліду. Якщо тека вже є, скрипт
 зупиняється і нічого не чіпає: прибирати її — справа людини.
 """
 
 import argparse
 import json
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
 
-from practice import bootstrap
+_PRACTICE = pathlib.Path(__file__).resolve().parents[1]
+_MODULE = _PRACTICE.parent
 
-SOURCE = "ecmascript"
-TARGET = "ecmascript-degraded"
+#: Здорові теки набору suite і тека копії. Копія пласка: порядок імен файлів у
+#: ній збігається з порядком «docs-full, потім docs-suite», а від порядку
+#: залежить, який із двох однакових текстів лишиться після злиття дублів.
+SOURCE_DIRS = [_PRACTICE / "docs-full", _PRACTICE / "docs-suite"]
+TARGET_DIR = _PRACTICE / "docs-degraded"
 
 #: Що саме переписано. Кожен запис називає кейси, які мають через нього впасти, —
 #: інакше після прогону не відрізнити навмисне псування від випадкового.
@@ -117,111 +124,113 @@ EDITS = [
     },
 ]
 
-#: Програма для дочірнього процесу: паспорт корпусу того примірника, на який
-#: вказує DF_INSTANCE_DIR. Двома процесами, а не одним, бо common.corpus обирає
-#: теку на імпорті модуля, і в одному процесі другий примірник уже не підставити.
-_PASSPORT = """
+#: Програма для дочірнього процесу: підсумок про набір, який вибрало оточення.
+#: Двома процесами, а не одним, бо practice.common.corpus обирає теки на імпорті
+#: модуля, і в одному процесі другий набір уже не підставити.
+_SUMMARY = """
 import hashlib, json, sys
 sys.path.insert(0, sys.argv[1])
-from common.corpus import load_passages
-from common.idmap import assign_ids
+from practice.common.corpus import DOC_SET, load_passages
+from practice.common.idmap import assign_ids
 passages = load_passages()
 by_id, _ = assign_ids(passages)
 ids = "\\n".join(sorted(by_id))
-print(json.dumps({"count": len(passages),
+print(json.dumps({"set": DOC_SET,
+                  "count": len(passages),
                   "ids": hashlib.sha256(ids.encode()).hexdigest()[:16],
                   "chars": sum(len(p.text) for p in passages)}))
 """
 
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(description="деградована копія примірника")
+    ap = argparse.ArgumentParser(description="деградована копія корпусу")
     ap.add_argument("--check", action="store_true",
                     help="нічого не будувати: звірити вже наявну копію")
     args = ap.parse_args(argv)
 
-    src = bootstrap.INSTANCES / SOURCE
-    dst = bootstrap.INSTANCES / TARGET
-
     if not args.check:
-        if dst.exists():
+        if TARGET_DIR.exists():
             raise SystemExit(
-                f"Копія вже є: {dst}\n"
+                f"Копія вже є: {TARGET_DIR}\n"
                 f"  Нічого не змінюю. Щоб зібрати заново, приберіть теку самі:\n"
-                f"    rm -rf {dst}")
-        _build(src, dst)
+                f"    rm -rf {TARGET_DIR}")
+        _build()
 
-    if not dst.is_dir():
-        raise SystemExit(f"Копії немає: {dst}\n  Зберіть її: python -m practice.base.degrade")
-    return _check(src, dst)
+    if not TARGET_DIR.is_dir():
+        raise SystemExit(f"Копії немає: {TARGET_DIR}\n"
+                         f"  Зберіть її: python -m practice.base.degrade")
+    return _check()
 
 
-def _build(src, dst) -> None:
-    """Копія примірника з переписаними реченнями. Джерело не чіпається."""
-    (dst / "corpus").mkdir(parents=True)
-    (dst / "out").mkdir()
+def _build() -> None:
+    """Копія корпусу з переписаними реченнями. Здорові теки не чіпаються."""
+    TARGET_DIR.mkdir(parents=True)
 
-    for name in sorted(p.name for p in (src / "corpus").iterdir() if p.is_file()):
-        shutil.copy2(src / "corpus" / name, dst / "corpus" / name)
-    # config.json — байт у байт: та сама колекція Qdrant і та сама модель векторів.
-    # Це і є суть підміни: числа в базі лишаються від здорового тексту.
-    shutil.copy2(src / "config.json", dst / "config.json")
-    # mode.json каже серверові, що пошук за змістом дозволений. Без нього копія
-    # шукала б лише по словах, і прогін порівнювався б не з тим.
-    shutil.copy2(src / "out" / "mode.json", dst / "out" / "mode.json")
+    for folder in SOURCE_DIRS:
+        for path in sorted(folder.glob("*.txt")):
+            shutil.copy2(path, TARGET_DIR / path.name)
 
     for i, edit in enumerate(EDITS, 1):
-        path = dst / "corpus" / edit["file"]
+        path = TARGET_DIR / edit["file"]
         text = path.read_text(encoding="utf-8")
         found = text.count(edit["old"])
         if found != 1:
             raise SystemExit(
                 f"Правка {i} ({edit['file']}): шуканий текст трапляється {found} раз(ів), "
-                f"а має рівно один. Копія лишилася недобудованою: {dst}")
+                f"а має рівно один. Копія лишилася недобудованою: {TARGET_DIR}")
         path.write_text(text.replace(edit["old"], edit["new"]), encoding="utf-8")
         print(f"  {i}. {edit['file']}: {edit['why']}")
 
-    (dst / "README.md").write_text(_readme(), encoding="utf-8")
-    print(f"\nКопія: {dst}")
+    (TARGET_DIR / "README.md").write_text(_readme(), encoding="utf-8")
+    print(f"\nКопія: {TARGET_DIR}")
 
 
-def _check(src, dst) -> int:
+def _check() -> int:
     """Безкоштовна звірка: що копія відрізняється текстом і нічим більше."""
     ok = True
 
-    names_src = sorted(p.name for p in (src / "corpus").iterdir() if p.is_file())
-    names_dst = sorted(p.name for p in (dst / "corpus").iterdir() if p.is_file())
+    names_src = sorted(p.name for f in SOURCE_DIRS for p in f.glob("*.txt"))
+    names_dst = sorted(p.name for p in TARGET_DIR.glob("*.txt"))
     ok &= _say("імена файлів корпусу збігаються", names_src == names_dst,
                f"{len(names_src)} проти {len(names_dst)}")
 
+    def _source(name):
+        for folder in SOURCE_DIRS:
+            if (folder / name).exists():
+                return folder / name
+        return None
+
     changed = [n for n in names_dst
-               if (src / "corpus" / n).read_bytes() != (dst / "corpus" / n).read_bytes()]
+               if _source(n) and _source(n).read_bytes() != (TARGET_DIR / n).read_bytes()]
     want = sorted({e["file"] for e in EDITS})
     ok &= _say(f"текст змінено рівно у {len(want)} файлах", sorted(changed) == want,
                ", ".join(changed) or "у жодному")
 
     for i, edit in enumerate(EDITS, 1):
-        text = (dst / "corpus" / edit["file"]).read_text(encoding="utf-8")
+        text = (TARGET_DIR / edit["file"]).read_text(encoding="utf-8")
         ok &= _say(f"правка {i} на місці ({', '.join(edit['cases'])})",
                    edit["new"] in text and edit["old"] not in text, edit["file"])
 
-    src_pass, dst_pass = _passport(src), _passport(dst)
+    src_sum, dst_sum = _summary(degraded=False), _summary(degraded=True)
     ok &= _say("кількість фрагментів не змінилася",
-               src_pass["count"] == dst_pass["count"],
-               f"{src_pass['count']} проти {dst_pass['count']}")
+               src_sum["count"] == dst_sum["count"],
+               f"{src_sum['count']} проти {dst_sum['count']}")
     ok &= _say("ідентифікатори фрагментів ті самі",
-               src_pass["ids"] == dst_pass["ids"],
-               f"{src_pass['ids']} проти {dst_pass['ids']}")
+               src_sum["ids"] == dst_sum["ids"],
+               f"{src_sum['ids']} проти {dst_sum['ids']}")
     # Останнє — не причіпка: ідентифікатор точки в Qdrant будується з pid, тож
     # збіг ідентифікаторів означає, що стара колекція далі віддає ці фрагменти.
     # Розійдись вони — пошук за змістом просто перестав би щось знаходити, і
     # прогін показав би падіння з іншої причини, ніж переписаний текст.
 
-    cfg_same = (src / "config.json").read_bytes() == (dst / "config.json").read_bytes()
-    ok &= _say("колекція Qdrant і модель векторів ті самі", cfg_same, "config.json")
+    # Ім'я колекції векторів рахується з назви набору. Назва мусить бути та сама,
+    # інакше деградований прогін пішов би в іншу колекцію, і числа в ній були б
+    # від того самого тексту, який агент читає, — тобто досліду не вийшло б.
+    ok &= _say("назва набору документів та сама", src_sum["set"] == dst_sum["set"],
+               f"{src_sum['set']} проти {dst_sum['set']}")
 
-    delta = dst_pass["chars"] - src_pass["chars"]
-    print(f"\nСимволів у корпусі: {dst_pass['chars']} ({delta:+d} до здорового)")
+    delta = dst_sum["chars"] - src_sum["chars"]
+    print(f"\nСимволів у корпусі: {dst_sum['chars']} ({delta:+d} до здорового)")
     print(f"Кейсів має впасти: {len(sorted({c for e in EDITS for c in e['cases']}))} — "
           f"{', '.join(sorted({c for e in EDITS for c in e['cases']}))}")
     print("Копія відрізняється від здорової тільки текстом." if ok
@@ -229,12 +238,16 @@ def _check(src, dst) -> int:
     return 0 if ok else 1
 
 
-def _passport(instance_dir) -> dict:
-    out = subprocess.run([sys.executable, "-c", _PASSPORT, str(bootstrap.DOCFACTORY)],
-                         capture_output=True, text=True,
-                         env={**os.environ, "DF_INSTANCE_DIR": str(instance_dir)})
+def _summary(degraded: bool) -> dict:
+    env = {**os.environ}
+    env.pop("PRACTICE_DEGRADED", None)
+    if degraded:
+        env["PRACTICE_DEGRADED"] = "1"
+    out = subprocess.run([sys.executable, "-c", _SUMMARY, str(_MODULE)],
+                         capture_output=True, text=True, env=env)
     if out.returncode != 0:
-        raise SystemExit(f"Не вдалося прочитати корпус {instance_dir}:\n{out.stderr}")
+        which = "деградованого" if degraded else "здорового"
+        raise SystemExit(f"Не вдалося прочитати {which} корпусу:\n{out.stderr}")
     return json.loads(out.stdout.strip().splitlines()[-1])
 
 
@@ -245,14 +258,15 @@ def _say(what: str, ok: bool, detail: str = "") -> bool:
 
 def _readme() -> str:
     lines = [
-        "# ecmascript-degraded — навмисно зіпсована копія\n",
-        "Тека зібрана скриптом `module7/practice/base/degrade.py` і потрібна рівно для одного:",
-        "показати, що гейт зупиняє реліз тоді, коли з агентом усе гаразд, а зіпсовані дані, які він",
-        "читає. Руками її не правлять — правлять таблицю `EDITS` у скрипті й збирають заново.\n",
-        "Від здорового примірника копія відрізняється тільки текстом кількох речень. Імена файлів,",
-        "кількість фрагментів, їхні ідентифікатори, колекція Qdrant і режим пошуку — ті самі, тож",
-        "ані `smoke.py`, ані санітар видачі, ані журнал `out/calls.log` цієї підміни не показують.\n",
-        "Ключа тут немає навмисно: практика бере його з `.env` здорового примірника.\n",
+        "# docs-degraded — навмисно зіпсована копія корпусу\n",
+        "Тека зібрана скриптом `practice/base/degrade.py` і потрібна рівно для одного: показати, що",
+        "гейт зупиняє реліз тоді, коли з агентом усе гаразд, а зіпсовані дані, які він читає. Руками",
+        "її не правлять — правлять таблицю `EDITS` у скрипті й збирають заново.\n",
+        "Від здорового набору копія відрізняється тільки текстом кількох речень. Імена файлів,",
+        "кількість фрагментів, їхні ідентифікатори, назва набору (а отже й колекція Qdrant) і режим",
+        "пошуку — ті самі, тож ані тести, ані санітар видачі, ані журнал `out/calls.log` цієї підміни",
+        "не показують.\n",
+        "Читає її прогін із прапорцем `--degraded`.\n",
         "## Що переписано\n",
     ]
     for i, edit in enumerate(EDITS, 1):

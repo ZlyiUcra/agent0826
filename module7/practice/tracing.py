@@ -1,23 +1,24 @@
 """
-ОСНОВА · спани навколо агента фабрики, за домовленостями OpenTelemetry GenAI.
+ОСНОВА · спани навколо агента практики, за домовленостями OpenTelemetry GenAI.
 
-Агент фабрики не знає про телеметрію і не змінюється заради неї. Спани ставлять
-три обгортки, які цей модуль накладає перед прогоном:
+Агент не знає про телеметрію і не змінюється заради неї. Спани ставлять три
+обгортки, які цей модуль накладає перед прогоном:
 
-    invoke_agent docfactory-ecmascript   ← server.agent.run    (усе звернення)
-      chat {model}                       ← common.llm._call    (кожен виклик моделі)
-      execute_tool {name}                ← server.agent._dispatch (кожен інструмент)
+    invoke_agent spec-agent    ← practice.base.agent.run       (усе звернення)
+      chat {model}             ← core.agent._call              (кожен виклик моделі)
+      execute_tool {name}      ← practice.base.agent._dispatch (кожен інструмент)
 
-Чому саме ці три точки. `_run` бере `_call` через `from common.llm import _call`
+Чому саме ці три точки. `_run` бере `_call` через `from core.agent import _call`
 всередині себе, тобто читає атрибут модуля на кожному прогоні, а `_dispatch`
-кличеться як глобальне ім'я модуля `server.agent` — обидві підміни видно агентові
-одразу. Guardrail ходить тим самим `_call`, тож його виклик теж стає спаном
-усередині звернення: це частина роботи агента, і його вартість рахується там.
+кличеться як глобальне ім'я модуля `practice.base.agent` — обидві підміни видно
+агентові одразу. Guardrail ходить тим самим `_call`, тож його виклик теж стає
+спаном усередині звернення: це частина роботи агента, і його вартість рахується
+там.
 
 Імена атрибутів пишуться рядками навмисно: пакет opentelemetry-semantic-conventions
 0.65b0 ще несе застарілу константу GEN_AI_SYSTEM і стару назву кеш-токенів.
 Грошової вартості в домовленостях немає взагалі — вона йде власним атрибутом
-docfactory.cost.usd, порахована з таблиці цін module7/core/cost.py.
+spec.cost.usd, порахована з таблиці цін module7/core/cost.py.
 """
 
 import atexit
@@ -28,7 +29,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import SpanKind, Status, StatusCode
 
-SERVICE = "docfactory-ecmascript"
+SERVICE = "spec-agent"
 
 #: Токени прогону за моделями, у формі, яку читає core.cost: {модель: {calls, in, out}}.
 USAGE: dict = {}
@@ -80,9 +81,9 @@ def setup(backend: str = "phoenix", processor=None, service: str = SERVICE):
 
 
 def _instrument_call(tracer):
-    import common.llm as llm
+    import core.agent as core_agent
 
-    original = llm._call
+    original = core_agent._call
     _ORIGINALS["_call"] = original
 
     def traced(**kwargs):
@@ -124,15 +125,15 @@ def _instrument_call(tracer):
             row["out"] += got_out
 
             from core.cost import usd
-            s.set_attribute("docfactory.cost.usd",
+            s.set_attribute("spec.cost.usd",
                             usd({model: {"in": got_in, "out": got_out}}))
             return resp
 
-    llm._call = traced
+    core_agent._call = traced
 
 
 def _instrument_dispatch(tracer):
-    from server import agent
+    from practice.base import agent
 
     original = agent._dispatch
     _ORIGINALS["_dispatch"] = original
@@ -157,8 +158,8 @@ def _instrument_dispatch(tracer):
             # два прогони можна порівняти лише на віру: режим залежить від того,
             # чи піднялися вектори, а це видно тільки тут.
             if out.get("search"):
-                s.set_attribute("docfactory.search.mode", out["search"])
-            s.set_attribute("docfactory.tool.duration_ms", ms)
+                s.set_attribute("spec.search.mode", out["search"])
+            s.set_attribute("spec.tool.duration_ms", ms)
 
             CALLS.append({"tool": name, "input": args, "ok": ok, "ms": ms,
                           "search": out.get("search"), "output": out})
@@ -176,21 +177,21 @@ def instrument(tracer) -> None:
 def restore() -> None:
     """Знімає обгортки — потрібно тестам, які ставлять їх кілька разів."""
     if "_call" in _ORIGINALS:
-        import common.llm as llm
-        llm._call = _ORIGINALS.pop("_call")
+        import core.agent as core_agent
+        core_agent._call = _ORIGINALS.pop("_call")
     if "_dispatch" in _ORIGINALS:
-        from server import agent
+        from practice.base import agent
         agent._dispatch = _ORIGINALS.pop("_dispatch")
 
 
-def traced_run(query: str, tracer, instance: str = "ecmascript") -> dict:
+def traced_run(query: str, tracer, corpus: str = "suite") -> dict:
     """Одне звернення до агента під кореневим спаном. Повертає звіт прогону.
 
     До звіту агента додається те, чого в ньому немає: список справді виконаних
     викликів, токени, вартість і ідентифікатор трейсу — за ним прогін знаходять
     у приймачі, і до нього ж чіпляється вердикт судді на наступному кроці.
     """
-    from server import agent
+    from practice.base import agent
 
     reset()
     with tracer.start_as_current_span(f"invoke_agent {SERVICE}",
@@ -198,7 +199,7 @@ def traced_run(query: str, tracer, instance: str = "ecmascript") -> dict:
         root.set_attribute("gen_ai.operation.name", "invoke_agent")
         root.set_attribute("gen_ai.agent.name", SERVICE)
         root.set_attribute("gen_ai.request.model", _model_name())
-        root.set_attribute("docfactory.instance", instance)
+        root.set_attribute("spec.corpus", corpus)
         started = time.perf_counter()
         report = agent.run(query)
         seconds = round(time.perf_counter() - started, 2)
@@ -206,8 +207,8 @@ def traced_run(query: str, tracer, instance: str = "ecmascript") -> dict:
         totals = usage_totals()
         root.set_attribute("gen_ai.usage.input_tokens", totals["in"])
         root.set_attribute("gen_ai.usage.output_tokens", totals["out"])
-        root.set_attribute("docfactory.cost.usd", totals["usd"])
-        root.set_attribute("docfactory.tool.calls", len(CALLS))
+        root.set_attribute("spec.cost.usd", totals["usd"])
+        root.set_attribute("spec.tool.calls", len(CALLS))
         if report["blocked"]:
             root.set_attribute("error.type", "blocked_by_layer")
             by = "; ".join(b["by"] for b in report["blocked"])
@@ -218,10 +219,10 @@ def traced_run(query: str, tracer, instance: str = "ecmascript") -> dict:
     report["usage"] = totals
     report["seconds"] = seconds
     report["trace_id"] = trace_id
-    report["instance"] = instance
+    report["corpus"] = corpus
     return report
 
 
 def _model_name() -> str:
-    import common.llm as llm
-    return llm.MODEL
+    from config import MODEL
+    return MODEL

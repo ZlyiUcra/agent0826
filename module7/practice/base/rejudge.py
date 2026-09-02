@@ -20,18 +20,15 @@ import datetime
 import json
 import sys
 
-from practice import bootstrap
-
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="пересудити збережений прогін")
     ap.add_argument("--from", dest="src", required=True, help="мітка збереженого прогону")
     ap.add_argument("--label", default=None, help="мітка результату (типово <src>-rejudged)")
     ap.add_argument("--judge-model", default=None,
-                    help="модель судді; типово дешева з .env примірника")
+                    help="модель судді; типово дешева з module7/.env")
     args = ap.parse_args(argv)
 
-    bootstrap.use()
     from practice import evaluation as ev
 
     src = ev.OUT / f"run-{args.src}.json"
@@ -95,7 +92,7 @@ def main(argv: list[str]) -> int:
         print(f"  · {cid}: {'pass' if was else 'fail'} → {'pass' if now else 'fail'}")
     print(f"Суддя: ${judge_usd} (агент не запускався — його ${run.get('agent_usd', 0)} "
           f"уже витрачені на прогін {args.src})")
-    print(f"Прогін: {path.relative_to(bootstrap.REPO)}")
+    print(f"Прогін: {path}")
     return 0
 
 
@@ -103,10 +100,10 @@ def _judge_with(model: str | None):
     """Суддя на вказаній моделі. Без аргументу — та сама дешева, що й у прогоні."""
     if not model:
         return None
-    from common import llm
+    from core import agent as core_agent
 
     def ask_json(system: str, user: str, fallback: dict) -> dict:
-        raw = llm._call(model=model, max_tokens=400, temperature=0.0,
+        raw = core_agent._call(model=model, max_tokens=400, temperature=0.0,
                         system=system + "\nПовертай ТІЛЬКИ валідний JSON, без пояснень.",
                         messages=[{"role": "user", "content": user}])
         text = "".join(b.text for b in raw.content if b.type == "text").strip()
