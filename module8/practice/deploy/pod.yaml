@@ -1,0 +1,65 @@
+# Одна атомарна сутність: под із двох контейнерів. Агент і його векторна база
+# живуть і вмирають разом, назовні дивиться лише порт агента. Стан їм належить
+# по-різному, і це навмисно: тека out/ агента вмирає з подом (агент без стану),
+# а сховище Qdrant лежить на PersistentVolumeClaim, тож вектори переживають
+# рестарт пода — але не видалення кластера.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spec-qdrant-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spec-agent
+  labels: {app: spec-agent}
+spec:
+  replicas: 1
+  # PVC з режимом ReadWriteOnce тримає один под: новий мусить дочекатися
+  # смерті старого, інакше вони не поділять диск.
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: spec-agent}
+  template:
+    metadata:
+      labels: {app: spec-agent}
+    spec:
+      containers:
+        - name: agent
+          image: spec-agent-m8:local
+          imagePullPolicy: IfNotPresent      # образ завезено в кластер напряму
+          ports: [{containerPort: 8000}]
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef: {name: spec-agent-secrets, key: ANTHROPIC_API_KEY}
+            - name: QDRANT_URL
+              value: http://localhost:6333   # сусідній контейнер цього ж пода
+          readinessProbe:
+            httpGet: {path: /health, port: 8000}
+            initialDelaySeconds: 5
+          resources:
+            requests: {cpu: 200m, memory: 512Mi}
+            limits:   {cpu: "1", memory: 1Gi}
+        - name: qdrant
+          image: qdrant/qdrant
+          ports: [{containerPort: 6333}]
+          volumeMounts:
+            - {name: data, mountPath: /qdrant/storage}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits:   {cpu: 500m, memory: 768Mi}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: spec-qdrant-data}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spec-agent
+spec:
+  selector: {app: spec-agent}
+  ports: [{port: 80, targetPort: 8000}]
