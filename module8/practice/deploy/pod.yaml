@@ -11,6 +11,17 @@ spec:
   accessModes: [ReadWriteOnce]
   resources: {requests: {storage: 1Gi}}
 ---
+# Другий том — під сесії розмов. Окремий від тома векторів навмисно: у сховищі
+# Qdrant не має лежати нічого чужого, а в сесій інший життєвий цикл — їх можна
+# зносити, не чіпаючи вектори.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spec-agent-sessions
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 100Mi}}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,6 +49,10 @@ spec:
                 secretKeyRef: {name: spec-agent-secrets, key: ANTHROPIC_API_KEY}
             - name: QDRANT_URL
               value: http://localhost:6333   # сусідній контейнер цього ж пода
+            - name: PRACTICE_SESSIONS_DIR
+              value: /data/sessions          # том нижче: діалог переживає рестарт
+          volumeMounts:
+            - {name: sessions, mountPath: /data/sessions}
           readinessProbe:
             httpGet: {path: /health, port: 8000}
             initialDelaySeconds: 5
@@ -55,6 +70,8 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim: {claimName: spec-qdrant-data}
+        - name: sessions
+          persistentVolumeClaim: {claimName: spec-agent-sessions}
 ---
 apiVersion: v1
 kind: Service

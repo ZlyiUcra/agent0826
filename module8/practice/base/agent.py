@@ -68,7 +68,12 @@ async def _dispatch(session, name, args, sess, report) -> dict:
     return out
 
 
-async def _run(query: str) -> dict:
+async def _run(query: str, history: list | None = None) -> dict:
+    """history — попередні ходи розмови як [{"role": ..., "content": текст}, ...].
+
+    Сюди приходить лише текст ходів, без блоків інструментів: службові
+    повідомлення живуть усередині одного прогону і між ходами не переносяться.
+    """
     report = {"query": query, "blocked": [], "trace": [], "output_flags": [],
               "guardrail": None, "input_blocked": False, "answer": "", "shown": ""}
 
@@ -94,7 +99,7 @@ async def _run(query: str) -> dict:
                         "input_schema": t.input_schema} for t in listed.tools]
             offered = layers.allowed_schemas(schemas, enforce=True)   # шар 3
             sess = layers.Session()
-            messages = [{"role": "user", "content": query}]
+            messages = list(history or []) + [{"role": "user", "content": query}]
             answer = ""
             for _turn in range(MAX_TURNS):
                 resp = _call(model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
@@ -125,9 +130,9 @@ async def _run(query: str) -> dict:
     return report
 
 
-def run(query: str) -> dict:
+def run(query: str, history: list | None = None) -> dict:
     """Синхронна обгортка над агентом. Повертає звіт прогону."""
-    return asyncio.run(_run(query))
+    return asyncio.run(_run(query, history))
 
 
 async def _list_tools() -> list[str]:
