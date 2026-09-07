@@ -1,0 +1,11 @@
+# 1.x прибрав temperature з messages.create() — код працює на обох
+# мажорах (core/agent.py прибирає аргумент, якщо його не беруть):
+anthropic>=0.40,<2
+python-dotenv>=1.0.0
+
+# MCP-сервер знань (SDK 1.x = FastMCP, 2.0 = MCPServer — код підтримує обидва):
+mcp[cli]>=2.1
+
+# Пошук за замовчуванням — по словах, без додаткових пакетів. Для пошуку за
+# змістом потрібні Qdrant у Docker і модель векторів — див. practice/base/setup.py:
+#   fastembed>=0.8
